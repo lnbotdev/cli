@@ -65,11 +65,12 @@ brews:
   - repository:
       owner: lnbotdev
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    skip_upload: auto
     homepage: https://ln.bot
     description: Lightning wallets for agents — CLI
     license: MIT
     install: |
       bin.install "lnbot"
-      generate_completions_from_executable(bin/"lnbot", "completion")
     test: |
       assert_match "lnbot", shell_output("#{bin}/lnbot version")
