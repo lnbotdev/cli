@@ -1,0 +1,75 @@
+version: 2
+
+project_name: lnbot
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - main: .
+    binary: lnbot
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/lnbotdev/cli/cmd.version={{.Version}}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: lnbotdev
+    name: cli
+  name_template: "v{{.Version}}"
+  header: |
+    ## Install
+
+    ```bash
+    curl -fsSL https://ln.bot/install.sh | bash
+    ```
+
+    Or via Homebrew:
+
+    ```bash
+    brew install lnbotdev/tap/lnbot
+    ```
+
+brews:
+  - repository:
+      owner: lnbotdev
+      name: homebrew-tap
+    homepage: https://ln.bot
+    description: Lightning wallets for agents — CLI
+    license: MIT
+    install: |
+      bin.install "lnbot"
+      generate_completions_from_executable(bin/"lnbot", "completion")
+    test: |
+      assert_match "lnbot", shell_output("#{bin}/lnbot version")
