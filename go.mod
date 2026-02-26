@@ -15,6 +15,3 @@ require (
 	golang.org/x/term v0.13.0 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )
-
-// Remove this replace directive once the go-sdk is published to a Go module proxy.
-replace github.com/lnbotdev/go-sdk => ../go-sdk
