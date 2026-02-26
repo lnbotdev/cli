@@ -11,6 +11,7 @@ import (
 	lnbot "github.com/lnbotdev/go-sdk"
 
 	"github.com/lnbotdev/cli/internal/config"
+	"github.com/lnbotdev/cli/internal/update"
 )
 
 var (
@@ -38,6 +39,12 @@ var rootCmd = &cobra.Command{
 		var err error
 		cfg, err = config.Load()
 		return err
+	},
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if latest, ok := update.CheckForUpdate(version); ok {
+			fmt.Fprintf(os.Stderr, "\nUpdate available: %s → %s\n", version, latest)
+			fmt.Fprintf(os.Stderr, "Run: curl -fsSL https://ln.bot/install.sh | bash\n")
+		}
 	},
 }
 
@@ -133,6 +140,7 @@ func init() {
 	webhookCmd.GroupID = "integrations"
 	mcpCmd.GroupID = "integrations"
 
+	updateCmd.GroupID = "other"
 	completionCmd.GroupID = "other"
 	versionCmd.GroupID = "other"
 
@@ -151,6 +159,7 @@ func init() {
 	rootCmd.AddCommand(addressCmd)
 	rootCmd.AddCommand(webhookCmd)
 	rootCmd.AddCommand(mcpCmd)
+	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	cobra.AddTemplateFuncs(template.FuncMap{
@@ -174,7 +183,7 @@ func init() {
 	// Leaf commands: use default cobra template (don't inherit root's grouped template)
 	leafCmds := []*cobra.Command{
 		initCmd, balanceCmd, statusCmd, whoamiCmd, payCmd, transactionsCmd,
-		completionCmd, versionCmd,
+		updateCmd, completionCmd, versionCmd,
 	}
 	for _, cmd := range leafCmds {
 		cmd.SetHelpTemplate(leafHelpTmpl)
