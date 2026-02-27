@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 )
 
 const (
-	repo         = "lnbotdev/cli"
-	checkTimeout = 3 * time.Second
+	repo          = "lnbotdev/cli"
+	checkTimeout  = 3 * time.Second
 	checkInterval = 24 * time.Hour
 )
 
@@ -30,12 +32,11 @@ func CheckForUpdate(current string) (latest string, available bool) {
 		return "", false
 	}
 
-	// Check cache first
 	if data, err := os.ReadFile(cacheFile()); err == nil {
 		var cached cachedCheck
 		if json.Unmarshal(data, &cached) == nil {
 			if time.Since(time.Unix(cached.CheckedAt, 0)) < checkInterval {
-				if cached.Latest != "" && cached.Latest != current {
+				if cached.Latest != "" && isNewer(cached.Latest, current) {
 					return cached.Latest, true
 				}
 				return "", false
@@ -43,19 +44,42 @@ func CheckForUpdate(current string) (latest string, available bool) {
 		}
 	}
 
-	// Fetch latest release from GitHub
 	latest, err := fetchLatest()
 	if err != nil {
 		return "", false
 	}
 
-	// Cache the result
 	saveCache(latest)
 
-	if latest != current && latest != "" {
+	if isNewer(latest, current) {
 		return latest, true
 	}
 	return "", false
+}
+
+// isNewer returns true if latest is a higher semver than current.
+func isNewer(latest, current string) bool {
+	l := parseVersion(latest)
+	c := parseVersion(current)
+	for i := 0; i < 3; i++ {
+		if l[i] > c[i] {
+			return true
+		}
+		if l[i] < c[i] {
+			return false
+		}
+	}
+	return false
+}
+
+func parseVersion(v string) [3]int {
+	v = strings.TrimPrefix(v, "v")
+	parts := strings.SplitN(v, ".", 3)
+	var out [3]int
+	for i := 0; i < len(parts) && i < 3; i++ {
+		out[i], _ = strconv.Atoi(parts[i])
+	}
+	return out
 }
 
 func fetchLatest() (string, error) {
