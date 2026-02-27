@@ -1,4 +1,4 @@
-# lnbot CLI
+# ln.bot CLI
 
 Command-line interface for [ln.bot](https://ln.bot) — Bitcoin Lightning wallets for AI agents.
 
