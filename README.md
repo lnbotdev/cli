@@ -91,36 +91,16 @@ Config is stored at `~/.config/lnbot/config.json`. Override the path with `LNBOT
 Generate config for AI agents (Claude, Cursor, etc.):
 
 ```bash
-# Local npx-based server
-lnbot mcp config
-
-# Remote SSE endpoint
 lnbot mcp config --remote
 ```
 
 ## Shell completions
 
 ```bash
-# Bash
-source <(lnbot completion bash)
-
-# Zsh
-source <(lnbot completion zsh)
-
-# Fish
-lnbot completion fish | source
+source <(lnbot completion bash)   # Bash
+source <(lnbot completion zsh)    # Zsh
+lnbot completion fish | source    # Fish
 ```
-
-## Releasing
-
-Releases are automated via [GoReleaser](https://goreleaser.com/). Push a tag to trigger:
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-This builds binaries for linux/darwin/windows (amd64 + arm64), creates a GitHub release with the install instructions, and updates the Homebrew tap.
 
 ## License
 
