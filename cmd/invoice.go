@@ -26,6 +26,7 @@ func init() {
 	invoiceCreateCmd.Flags().Int64("amount", 0, "amount in sats (required)")
 	invoiceCreateCmd.MarkFlagRequired("amount")
 	invoiceCreateCmd.Flags().String("memo", "", "short description attached to the invoice")
+	invoiceCreateCmd.Flags().Bool("no-wait", false, "return immediately without waiting for payment")
 
 	invoiceListCmd.Flags().Int("limit", 20, "max number of results")
 	invoiceListCmd.Flags().Int("after", 0, "show results after this invoice number (for pagination)")
@@ -39,11 +40,12 @@ var invoiceCreateCmd = &cobra.Command{
 	Short: "Create a Lightning invoice to receive sats",
 	Long: `Create a new Lightning invoice for the given amount.
 
-Prints the BOLT11 string, renders a QR code in the terminal, and
-automatically waits for the payment to settle via SSE. Press Ctrl+C
-to stop waiting — the invoice remains valid until it expires.`,
+Prints the BOLT11 string and automatically waits for the payment to
+settle via SSE. Use --no-wait to return immediately. The invoice
+remains valid until it expires.`,
 	Example: `  lnbot invoice create --amount 1000
   lnbot invoice create --amount 5000 --memo "for coffee"
+  lnbot invoice create --amount 100 --no-wait
   lnbot invoice create --amount 100 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireConfig(); err != nil {
@@ -73,8 +75,27 @@ to stop waiting — the invoice remains valid until it expires.`,
 			return apiError("creating invoice", err)
 		}
 
+		noWait, _ := cmd.Flags().GetBool("no-wait")
+
 		if jsonFlag {
-			return json.NewEncoder(os.Stdout).Encode(invoice)
+			if noWait {
+				return json.NewEncoder(os.Stdout).Encode(invoice)
+			}
+			events, errs := ln.Invoices.Watch(ctx, invoice.Number, nil)
+			for {
+				select {
+				case ev, ok := <-events:
+					if !ok {
+						return json.NewEncoder(os.Stdout).Encode(invoice)
+					}
+					return json.NewEncoder(os.Stdout).Encode(ev.Data)
+				case err, ok := <-errs:
+					if ok && err != nil {
+						return json.NewEncoder(os.Stdout).Encode(invoice)
+					}
+					return json.NewEncoder(os.Stdout).Encode(invoice)
+				}
+			}
 		}
 
 		fmt.Printf("  amount:  %s\n", format.Sats(invoice.Amount))
@@ -82,6 +103,10 @@ to stop waiting — the invoice remains valid until it expires.`,
 		fmt.Println("  bolt11:")
 		fmt.Printf("  %s\n", invoice.Bolt11)
 		fmt.Println()
+
+		if noWait {
+			return nil
+		}
 
 		fmt.Print("  Waiting for payment... (Ctrl+C to stop)")
 
