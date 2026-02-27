@@ -132,7 +132,7 @@ var addressTransferCmd = &cobra.Command{
 Specify the target by wallet name (--to) if it's in your local config,
 or by API key (--target-key) if it's not.`,
 	Example: `  lnbot address transfer alice --to agent02
-  lnbot address transfer alice --target-key lnb_pk_live_...`,
+  lnbot address transfer alice --target-key key_...`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireConfig(); err != nil {

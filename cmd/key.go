@@ -96,9 +96,7 @@ The new key is printed once — save it. The local config is updated automatical
 			return err
 		}
 
-		sdkSlot := slot + 1
-
-		rotated, err := ln.Keys.Rotate(context.Background(), sdkSlot)
+		rotated, err := ln.Keys.Rotate(context.Background(), slot)
 		if err != nil {
 			return apiError("rotating key", err)
 		}

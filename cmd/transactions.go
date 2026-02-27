@@ -21,6 +21,7 @@ var transactionsCmd = &cobra.Command{
 incoming (credits) and outgoing (debits), newest first.`,
 	Example: `  lnbot transactions
   lnbot tx --limit 5
+  lnbot transactions --after 20
   lnbot transactions --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireConfig(); err != nil {
@@ -28,15 +29,19 @@ incoming (credits) and outgoing (debits), newest first.`,
 		}
 
 		limit, _ := cmd.Flags().GetInt("limit")
+		after, _ := cmd.Flags().GetInt("after")
 
 		ln, _, _, err := cfg.Client(walletFlag)
 		if err != nil {
 			return err
 		}
 
-		txs, err := ln.Transactions.List(context.Background(), &lnbot.ListTransactionsParams{
-			Limit: lnbot.Ptr(limit),
-		})
+		params := &lnbot.ListTransactionsParams{Limit: lnbot.Ptr(limit)}
+		if after > 0 {
+			params.After = lnbot.Ptr(after)
+		}
+
+		txs, err := ln.Transactions.List(context.Background(), params)
 		if err != nil {
 			return apiError("listing transactions", err)
 		}
@@ -65,7 +70,8 @@ incoming (credits) and outgoing (debits), newest first.`,
 		}
 
 		if len(txs) == limit {
-			fmt.Printf("\n  %d shown — use --limit to see more\n", limit)
+			last := txs[len(txs)-1].Number
+			fmt.Printf("\n  %d shown — next page: --after %d\n", limit, last)
 		}
 		return nil
 	},
@@ -73,4 +79,5 @@ incoming (credits) and outgoing (debits), newest first.`,
 
 func init() {
 	transactionsCmd.Flags().Int("limit", 20, "max number of results")
+	transactionsCmd.Flags().Int("after", 0, "show results after this transaction number (for pagination)")
 }

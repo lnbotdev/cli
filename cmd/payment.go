@@ -21,6 +21,7 @@ var paymentCmd = &cobra.Command{
 
 func init() {
 	paymentListCmd.Flags().Int("limit", 20, "max number of results")
+	paymentListCmd.Flags().Int("after", 0, "show results after this payment number (for pagination)")
 
 	paymentCmd.AddCommand(paymentListCmd)
 }
@@ -32,6 +33,7 @@ var paymentListCmd = &cobra.Command{
 	Long:    `Show recent outgoing payments for the active wallet, newest first.`,
 	Example: `  lnbot payment list
   lnbot payment list --limit 5
+  lnbot payment list --after 20
   lnbot payment list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireConfig(); err != nil {
@@ -39,15 +41,19 @@ var paymentListCmd = &cobra.Command{
 		}
 
 		limit, _ := cmd.Flags().GetInt("limit")
+		after, _ := cmd.Flags().GetInt("after")
 
 		ln, _, _, err := cfg.Client(walletFlag)
 		if err != nil {
 			return err
 		}
 
-		payments, err := ln.Payments.List(context.Background(), &lnbot.ListPaymentsParams{
-			Limit: lnbot.Ptr(limit),
-		})
+		params := &lnbot.ListPaymentsParams{Limit: lnbot.Ptr(limit)}
+		if after > 0 {
+			params.After = lnbot.Ptr(after)
+		}
+
+		payments, err := ln.Payments.List(context.Background(), params)
 		if err != nil {
 			return apiError("listing payments", err)
 		}
@@ -76,7 +82,8 @@ var paymentListCmd = &cobra.Command{
 		}
 
 		if len(payments) == limit {
-			fmt.Printf("\n  %d shown — use --limit to see more\n", limit)
+			last := payments[len(payments)-1].Number
+			fmt.Printf("\n  %d shown — next page: --after %d\n", limit, last)
 		}
 		return nil
 	},

@@ -28,6 +28,7 @@ func init() {
 	invoiceCreateCmd.Flags().String("memo", "", "short description attached to the invoice")
 
 	invoiceListCmd.Flags().Int("limit", 20, "max number of results")
+	invoiceListCmd.Flags().Int("after", 0, "show results after this invoice number (for pagination)")
 
 	invoiceCmd.AddCommand(invoiceCreateCmd)
 	invoiceCmd.AddCommand(invoiceListCmd)
@@ -123,6 +124,7 @@ var invoiceListCmd = &cobra.Command{
 	Long:    `Show recent invoices for the active wallet, newest first.`,
 	Example: `  lnbot invoice list
   lnbot invoice list --limit 5
+  lnbot invoice list --after 20
   lnbot invoice list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireConfig(); err != nil {
@@ -130,15 +132,19 @@ var invoiceListCmd = &cobra.Command{
 		}
 
 		limit, _ := cmd.Flags().GetInt("limit")
+		after, _ := cmd.Flags().GetInt("after")
 
 		ln, _, _, err := cfg.Client(walletFlag)
 		if err != nil {
 			return err
 		}
 
-		invoices, err := ln.Invoices.List(context.Background(), &lnbot.ListInvoicesParams{
-			Limit: lnbot.Ptr(limit),
-		})
+		params := &lnbot.ListInvoicesParams{Limit: lnbot.Ptr(limit)}
+		if after > 0 {
+			params.After = lnbot.Ptr(after)
+		}
+
+		invoices, err := ln.Invoices.List(context.Background(), params)
 		if err != nil {
 			return apiError("listing invoices", err)
 		}
@@ -162,7 +168,8 @@ var invoiceListCmd = &cobra.Command{
 		}
 
 		if len(invoices) == limit {
-			fmt.Printf("\n  %d shown — use --limit to see more\n", limit)
+			last := invoices[len(invoices)-1].Number
+			fmt.Printf("\n  %d shown — next page: --after %d\n", limit, last)
 		}
 		return nil
 	},
