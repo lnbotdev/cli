@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	lnbot "github.com/lnbotdev/go-sdk"
-	qrterminal "github.com/mdp/qrterminal/v3"
 
 	"github.com/lnbotdev/cli/internal/format"
 )
@@ -82,15 +80,6 @@ to stop waiting — the invoice remains valid until it expires.`,
 		fmt.Printf("  status:  %s\n", invoice.Status)
 		fmt.Println("  bolt11:")
 		fmt.Printf("  %s\n", invoice.Bolt11)
-		fmt.Println()
-
-		fmt.Println("  ⚡ Scan to pay:")
-		qrterminal.GenerateWithConfig(strings.ToUpper(invoice.Bolt11), qrterminal.Config{
-			Level:      qrterminal.L,
-			Writer:     os.Stdout,
-			HalfBlocks: true,
-			QuietZone:  2,
-		})
 		fmt.Println()
 
 		fmt.Print("  Waiting for payment... (Ctrl+C to stop)")
