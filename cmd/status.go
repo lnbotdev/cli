@@ -17,14 +17,10 @@ var statusCmd = &cobra.Command{
 	Short: "Wallet status and API health",
 	Long:  `Show wallet details, balance, addresses, and API connectivity.`,
 	Example: `  lnbot status
-  lnbot status --wallet agent02
+  lnbot status --wallet wal_abc
   lnbot status --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
-		ln, _, name, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
@@ -32,38 +28,38 @@ var statusCmd = &cobra.Command{
 		ctx := context.Background()
 
 		t0 := time.Now()
-		w, err := ln.Wallets.Current(ctx)
+		wal, err := w.Get(ctx)
 		if err != nil {
 			return apiError("fetching status", err)
 		}
 		latency := time.Since(t0)
 
 		var firstAddr string
-		addrs, addrErr := ln.Addresses.List(ctx)
+		addrs, addrErr := w.Addresses.List(ctx)
 		if addrErr == nil && len(addrs) > 0 {
 			firstAddr = addrs[0].Address
 		}
 
 		if jsonFlag {
 			return json.NewEncoder(os.Stdout).Encode(map[string]any{
-				"wallet":    name,
-				"walletId":  w.WalletID,
-				"balance":   w.Balance,
-				"available": w.Available,
-				"onHold":    w.OnHold,
+				"walletId":  wal.WalletID,
+				"name":      wal.Name,
+				"balance":   wal.Balance,
+				"available": wal.Available,
+				"onHold":    wal.OnHold,
 				"address":   firstAddr,
 				"latencyMs": latency.Milliseconds(),
 			})
 		}
 
-		fmt.Printf("  name:      %s\n", name)
-		fmt.Printf("  id:        %s\n", w.WalletID)
+		fmt.Printf("  name:      %s\n", wal.Name)
+		fmt.Printf("  id:        %s\n", wal.WalletID)
 		if firstAddr != "" {
 			fmt.Printf("  address:   %s\n", firstAddr)
 		}
-		fmt.Printf("  balance:   %s\n", format.Sats(w.Balance))
-		fmt.Printf("  available: %s\n", format.Sats(w.Available))
-		fmt.Printf("  on hold:   %s\n", format.Sats(w.OnHold))
+		fmt.Printf("  balance:   %s\n", format.Sats(wal.Balance))
+		fmt.Printf("  available: %s\n", format.Sats(wal.Available))
+		fmt.Printf("  on hold:   %s\n", format.Sats(wal.OnHold))
 		fmt.Printf("  api:       ✓ connected (%dms)\n", latency.Milliseconds())
 		return nil
 	},

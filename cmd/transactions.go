@@ -24,14 +24,10 @@ incoming (credits) and outgoing (debits), newest first.`,
   lnbot transactions --after 20
   lnbot transactions --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		limit, _ := cmd.Flags().GetInt("limit")
 		after, _ := cmd.Flags().GetInt("after")
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
@@ -41,7 +37,7 @@ incoming (credits) and outgoing (debits), newest first.`,
 			params.After = lnbot.Ptr(after)
 		}
 
-		txs, err := ln.Transactions.List(context.Background(), params)
+		txs, err := w.Transactions.List(context.Background(), params)
 		if err != nil {
 			return apiError("listing transactions", err)
 		}

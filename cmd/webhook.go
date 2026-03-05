@@ -39,18 +39,14 @@ that you use to verify payloads. The secret is shown once.`,
 	Example: `  lnbot webhook create --url https://myapp.com/hooks/lnbot
   lnbot webhook create --url https://example.com/hook --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		url, _ := cmd.Flags().GetString("url")
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
-		hook, err := ln.Webhooks.Create(context.Background(), &lnbot.CreateWebhookParams{
+		hook, err := w.Webhooks.Create(context.Background(), &lnbot.CreateWebhookParams{
 			URL: url,
 		})
 		if err != nil {
@@ -79,16 +75,12 @@ var webhookListCmd = &cobra.Command{
 	Example: `  lnbot webhook list
   lnbot webhook list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
-		hooks, err := ln.Webhooks.List(context.Background())
+		hooks, err := w.Webhooks.List(context.Background())
 		if err != nil {
 			return apiError("listing webhooks", err)
 		}
@@ -121,18 +113,14 @@ var webhookDeleteCmd = &cobra.Command{
   lnbot webhook delete whk_9xMn2 --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		id := args[0]
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
-		if err := ln.Webhooks.Delete(context.Background(), id); err != nil {
+		if err := w.Webhooks.Delete(context.Background(), id); err != nil {
 			return apiError("deleting webhook", err)
 		}
 

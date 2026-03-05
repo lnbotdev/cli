@@ -23,8 +23,7 @@ You can also buy vanity addresses like alice@ln.bot.`,
 }
 
 func init() {
-	addressTransferCmd.Flags().String("to", "", "target wallet name (from local config)")
-	addressTransferCmd.Flags().String("target-key", "", "target wallet API key (if not in local config)")
+	addressTransferCmd.Flags().String("target-key", "", "target wallet API key")
 
 	addressCmd.AddCommand(addressListCmd)
 	addressCmd.AddCommand(addressBuyCmd)
@@ -40,16 +39,12 @@ var addressListCmd = &cobra.Command{
 	Example: `  lnbot address list
   lnbot address list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
-		addrs, err := ln.Addresses.List(context.Background())
+		addrs, err := w.Addresses.List(context.Background())
 		if err != nil {
 			return apiError("listing addresses", err)
 		}
@@ -87,10 +82,6 @@ is included automatically (alice+anything@ln.bot).`,
   lnbot address buy mybot --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		name := args[0]
 
 		if !yesFlag {
@@ -100,12 +91,12 @@ is included automatically (alice+anything@ln.bot).`,
 			}
 		}
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
-		addr, err := ln.Addresses.Create(context.Background(), &lnbot.CreateAddressParams{
+		addr, err := w.Addresses.Create(context.Background(), &lnbot.CreateAddressParams{
 			Address: lnbot.Ptr(name),
 		})
 		if err != nil {
@@ -129,49 +120,30 @@ var addressTransferCmd = &cobra.Command{
 	Short: "Transfer an address to another wallet",
 	Long: `Move a Lightning address to a different wallet.
 
-Specify the target by wallet name (--to) if it's in your local config,
-or by API key (--target-key) if it's not.`,
-	Example: `  lnbot address transfer alice --to agent02
-  lnbot address transfer alice --target-key key_...`,
+Specify the target by API key (--target-key).`,
+	Example: `  lnbot address transfer alice --target-key uk_...`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		address := args[0]
-		toName, _ := cmd.Flags().GetString("to")
 		targetKey, _ := cmd.Flags().GetString("target-key")
 
-		if toName == "" && targetKey == "" {
-			return fmt.Errorf("specify --to <wallet-name> or --target-key <api-key>")
-		}
-
 		if targetKey == "" {
-			toEntry, _, err := cfg.ResolveWallet(toName)
-			if err != nil {
-				return err
-			}
-			targetKey = toEntry.PrimaryKey
+			return fmt.Errorf("specify --target-key <api-key>")
 		}
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
 		if !yesFlag {
-			prompt := fmt.Sprintf("Transfer %s to another wallet?", address)
-			if toName != "" {
-				prompt = fmt.Sprintf("Transfer %s to '%s'?", address, toName)
-			}
-			if !confirm(prompt) {
+			if !confirm(fmt.Sprintf("Transfer %s to another wallet?", address)) {
 				fmt.Println("Cancelled.")
 				return nil
 			}
 		}
 
-		result, err := ln.Addresses.Transfer(context.Background(), address, &lnbot.TransferAddressParams{
+		result, err := w.Addresses.Transfer(context.Background(), address, &lnbot.TransferAddressParams{
 			TargetWalletKey: targetKey,
 		})
 		if err != nil {
@@ -195,10 +167,6 @@ var addressDeleteCmd = &cobra.Command{
   lnbot address delete alice --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		address := args[0]
 
 		if !yesFlag {
@@ -208,12 +176,12 @@ var addressDeleteCmd = &cobra.Command{
 			}
 		}
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
-		if err := ln.Addresses.Delete(context.Background(), address); err != nil {
+		if err := w.Addresses.Delete(context.Background(), address); err != nil {
 			return apiError("deleting address", err)
 		}
 

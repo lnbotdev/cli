@@ -28,12 +28,10 @@ func resetState() {
 func executeCmd(args ...string) (stdout, stderr string, err error) {
 	resetState()
 
-	// Capture os.Stdout
 	oldStdout := os.Stdout
 	rOut, wOut, _ := os.Pipe()
 	os.Stdout = wOut
 
-	// Capture os.Stderr
 	oldStderr := os.Stderr
 	rErr, wErr, _ := os.Pipe()
 	os.Stderr = wErr
@@ -74,21 +72,9 @@ func setupNoConfig(t *testing.T) {
 
 func testConfig() *config.Config {
 	return &config.Config{
-		Active: "main",
-		Wallets: map[string]config.WalletEntry{
-			"main": {
-				ID:           "wal_main123",
-				PrimaryKey:   "key_primary_abcdefghijklmnop",
-				SecondaryKey: "key_secondary_1234567890abcdef",
-				Address:      "main@ln.bot",
-			},
-			"secondary": {
-				ID:           "wal_sec456",
-				PrimaryKey:   "key_sec_primary_xyz",
-				SecondaryKey: "key_sec_secondary_xyz",
-				Address:      "secondary@ln.bot",
-			},
-		},
+		PrimaryKey:     "uk_primary_abcdefghijklmnop",
+		SecondaryKey:   "uk_secondary_1234567890abcdef",
+		ActiveWalletID: "wal_main123",
 	}
 }
 
@@ -104,7 +90,7 @@ func TestTruncateKey(t *testing.T) {
 	}{
 		{"short key", "abc123", "abc123"},
 		{"exactly 16", "1234567890123456", "1234567890123456"},
-		{"long key", "key_primary_abcdefghijklmnop", "key_primary_...mnop"},
+		{"long key", "uk_primary_abcdefghijklmnop", "uk_primary_a...mnop"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -148,7 +134,7 @@ func TestRequireConfig_Nil(t *testing.T) {
 }
 
 func TestRequireConfig_NonNil(t *testing.T) {
-	cfg = &config.Config{}
+	cfg = &config.Config{PrimaryKey: "uk_test"}
 	err := requireConfig()
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -172,26 +158,8 @@ func TestVersion(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Init command
+// Init command — already initialized
 // ---------------------------------------------------------------------------
-
-func TestInit_New(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "config.json")
-	t.Setenv("LNBOT_CONFIG", p)
-	t.Setenv("LNBOT_NO_UPDATE_CHECK", "1")
-
-	stdout, _, err := executeCmd("init")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "Config created") {
-		t.Errorf("output should contain 'Config created', got %q", stdout)
-	}
-	if _, err := os.Stat(p); err != nil {
-		t.Errorf("config file not created: %v", err)
-	}
-}
 
 func TestInit_Existing(t *testing.T) {
 	setupConfig(t, testConfig())
@@ -200,148 +168,8 @@ func TestInit_Existing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(stdout, "Config already exists") {
-		t.Errorf("output should contain 'Config already exists', got %q", stdout)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Wallet list
-// ---------------------------------------------------------------------------
-
-func TestWalletList_Empty(t *testing.T) {
-	setupConfig(t, &config.Config{Wallets: map[string]config.WalletEntry{}})
-
-	stdout, _, err := executeCmd("wallet", "list")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "No wallets yet") {
-		t.Errorf("output should contain 'No wallets yet', got %q", stdout)
-	}
-}
-
-func TestWalletList_WithWallets(t *testing.T) {
-	setupConfig(t, testConfig())
-
-	stdout, _, err := executeCmd("wallet", "list")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "main") {
-		t.Errorf("output should contain wallet name 'main', got %q", stdout)
-	}
-	if !strings.Contains(stdout, "secondary") {
-		t.Errorf("output should contain wallet name 'secondary', got %q", stdout)
-	}
-	if !strings.Contains(stdout, "●") {
-		t.Errorf("output should contain active marker ●, got %q", stdout)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Wallet use
-// ---------------------------------------------------------------------------
-
-func TestWalletUse_ByName(t *testing.T) {
-	p := setupConfig(t, testConfig())
-
-	stdout, _, err := executeCmd("wallet", "use", "secondary")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "Switched to secondary") {
-		t.Errorf("output should contain switch message, got %q", stdout)
-	}
-
-	// Verify persisted
-	data, _ := os.ReadFile(p)
-	var saved config.Config
-	json.Unmarshal(data, &saved)
-	if saved.Active != "secondary" {
-		t.Errorf("saved active = %q, want %q", saved.Active, "secondary")
-	}
-}
-
-func TestWalletUse_ByID(t *testing.T) {
-	setupConfig(t, testConfig())
-
-	stdout, _, err := executeCmd("wallet", "use", "wal_sec456")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "Switched to secondary") {
-		t.Errorf("output should contain switch message, got %q", stdout)
-	}
-}
-
-func TestWalletUse_NotFound(t *testing.T) {
-	setupConfig(t, testConfig())
-
-	_, _, err := executeCmd("wallet", "use", "nonexistent")
-	if err == nil {
-		t.Fatal("expected error for not found wallet")
-	}
-	if !strings.Contains(err.Error(), "wallet not found") {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Wallet delete
-// ---------------------------------------------------------------------------
-
-func TestWalletDelete_WithForce(t *testing.T) {
-	p := setupConfig(t, testConfig())
-
-	stdout, _, err := executeCmd("wallet", "delete", "secondary", "--force")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "Wallet removed") {
-		t.Errorf("output should contain 'Wallet removed', got %q", stdout)
-	}
-
-	data, _ := os.ReadFile(p)
-	var saved config.Config
-	json.Unmarshal(data, &saved)
-	if _, ok := saved.Wallets["secondary"]; ok {
-		t.Error("secondary wallet should have been removed")
-	}
-}
-
-func TestWalletDelete_ActiveWithYes(t *testing.T) {
-	p := setupConfig(t, testConfig())
-
-	stdout, _, err := executeCmd("wallet", "delete", "main", "--yes")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "Wallet removed") {
-		t.Errorf("output should contain 'Wallet removed', got %q", stdout)
-	}
-
-	data, _ := os.ReadFile(p)
-	var saved config.Config
-	json.Unmarshal(data, &saved)
-	if _, ok := saved.Wallets["main"]; ok {
-		t.Error("main wallet should have been removed")
-	}
-	// Active should switch to remaining wallet or be empty
-	if saved.Active == "main" {
-		t.Error("active should not still be 'main' after deletion")
-	}
-}
-
-func TestWalletDelete_NotFound(t *testing.T) {
-	setupConfig(t, testConfig())
-
-	_, _, err := executeCmd("wallet", "delete", "nonexistent", "--force")
-	if err == nil {
-		t.Fatal("expected error for not found wallet")
-	}
-	if !strings.Contains(err.Error(), "not found") {
-		t.Errorf("unexpected error: %v", err)
+	if !strings.Contains(stdout, "Already initialized") {
+		t.Errorf("output should contain 'Already initialized', got %q", stdout)
 	}
 }
 
@@ -359,7 +187,7 @@ func TestKeyShow(t *testing.T) {
 	if !strings.Contains(stdout, "primary") {
 		t.Errorf("output should contain 'primary', got %q", stdout)
 	}
-	if !strings.Contains(stdout, "key_primary_abcdefghijklmnop") {
+	if !strings.Contains(stdout, "uk_primary_abcdefghijklmnop") {
 		t.Errorf("output should contain primary key value, got %q", stdout)
 	}
 	if !strings.Contains(stdout, "secondary") {
@@ -378,23 +206,11 @@ func TestKeyShow_JSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 		t.Fatalf("invalid JSON output: %v", err)
 	}
-	if result["primary_key"] != "key_primary_abcdefghijklmnop" {
-		t.Errorf("primary_key = %q, want %q", result["primary_key"], "key_primary_abcdefghijklmnop")
+	if result["primary_key"] != "uk_primary_abcdefghijklmnop" {
+		t.Errorf("primary_key = %q, want %q", result["primary_key"], "uk_primary_abcdefghijklmnop")
 	}
-	if result["secondary_key"] != "key_secondary_1234567890abcdef" {
-		t.Errorf("secondary_key = %q, want %q", result["secondary_key"], "key_secondary_1234567890abcdef")
-	}
-}
-
-func TestKeyShow_Wallet(t *testing.T) {
-	setupConfig(t, testConfig())
-
-	stdout, _, err := executeCmd("key", "show", "--wallet", "secondary")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(stdout, "key_sec_primary_xyz") {
-		t.Errorf("output should contain secondary wallet's key, got %q", stdout)
+	if result["secondary_key"] != "uk_secondary_1234567890abcdef" {
+		t.Errorf("secondary_key = %q, want %q", result["secondary_key"], "uk_secondary_1234567890abcdef")
 	}
 }
 
@@ -413,11 +229,8 @@ func TestWhoami_JSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
 		t.Fatalf("invalid JSON output: %v", err)
 	}
-	if result["wallet"] != "wal_main123" {
-		t.Errorf("wallet = %q, want %q", result["wallet"], "wal_main123")
-	}
-	if result["name"] != "main" {
-		t.Errorf("name = %q, want %q", result["name"], "main")
+	if result["wallet_id"] != "wal_main123" {
+		t.Errorf("wallet_id = %q, want %q", result["wallet_id"], "wal_main123")
 	}
 	if _, ok := result["api_key"]; !ok {
 		t.Error("api_key field missing")
@@ -447,10 +260,10 @@ func TestMcpConfig_Remote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(stdout, "key_primary_abcdefghijklmnop") {
+	if !strings.Contains(stdout, "uk_primary_abcdefghijklmnop") {
 		t.Errorf("output should contain API key, got %q", stdout)
 	}
-	if !strings.Contains(stdout, "api.ln.bot/mcp") {
+	if !strings.Contains(stdout, "api.ln.bot/v1/wallets/wal_main123/mcp") {
 		t.Errorf("output should contain MCP URL, got %q", stdout)
 	}
 }
@@ -484,6 +297,58 @@ func TestCompletion_Bash(t *testing.T) {
 	if !strings.Contains(stdout, "bash") {
 		t.Errorf("output should contain bash-related content, got %q", stdout[:min(100, len(stdout))])
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Resolve wallet
+// ---------------------------------------------------------------------------
+
+func TestResolveWalletID_NoConfig(t *testing.T) {
+	cfg = nil
+	_, err := resolveWalletID()
+	if err == nil {
+		t.Fatal("expected error for nil config")
+	}
+}
+
+func TestResolveWalletID_NoActiveWallet(t *testing.T) {
+	cfg = &config.Config{PrimaryKey: "uk_test"}
+	walletFlag = ""
+	_, err := resolveWalletID()
+	if err == nil {
+		t.Fatal("expected error for no active wallet")
+	}
+	if !strings.Contains(err.Error(), "no active wallet") {
+		t.Errorf("unexpected error: %v", err)
+	}
+	cfg = nil
+}
+
+func TestResolveWalletID_WithActiveWallet(t *testing.T) {
+	cfg = &config.Config{PrimaryKey: "uk_test", ActiveWalletID: "wal_abc"}
+	walletFlag = ""
+	id, err := resolveWalletID()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "wal_abc" {
+		t.Errorf("id = %q, want %q", id, "wal_abc")
+	}
+	cfg = nil
+}
+
+func TestResolveWalletID_WithFlag(t *testing.T) {
+	cfg = &config.Config{PrimaryKey: "uk_test", ActiveWalletID: "wal_abc"}
+	walletFlag = "wal_override"
+	id, err := resolveWalletID()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if id != "wal_override" {
+		t.Errorf("id = %q, want %q", id, "wal_override")
+	}
+	cfg = nil
+	walletFlag = ""
 }
 
 // ---------------------------------------------------------------------------
@@ -603,21 +468,9 @@ func TestAddressTransfer_NoTarget(t *testing.T) {
 
 	_, _, err := executeCmd("address", "transfer", "alice", "--yes")
 	if err == nil {
-		t.Fatal("expected error without --to or --target-key")
+		t.Fatal("expected error without --target-key")
 	}
-	if !strings.Contains(err.Error(), "--to") || !strings.Contains(err.Error(), "--target-key") {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestWalletList_NoConfig(t *testing.T) {
-	setupNoConfig(t)
-
-	_, _, err := executeCmd("wallet", "list")
-	if err == nil {
-		t.Fatal("expected error without config")
-	}
-	if !strings.Contains(err.Error(), "no config found") {
+	if !strings.Contains(err.Error(), "--target-key") {
 		t.Errorf("unexpected error: %v", err)
 	}
 }

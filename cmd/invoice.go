@@ -48,10 +48,6 @@ remains valid until it expires.`,
   lnbot invoice create --amount 100 --no-wait
   lnbot invoice create --amount 100 --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		amount, _ := cmd.Flags().GetInt64("amount")
 		if amount <= 0 {
 			return fmt.Errorf("--amount must be a positive integer")
@@ -59,7 +55,7 @@ remains valid until it expires.`,
 
 		memo, _ := cmd.Flags().GetString("memo")
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
@@ -70,7 +66,7 @@ remains valid until it expires.`,
 		}
 
 		ctx := context.Background()
-		invoice, err := ln.Invoices.Create(ctx, params)
+		invoice, err := w.Invoices.Create(ctx, params)
 		if err != nil {
 			return apiError("creating invoice", err)
 		}
@@ -81,7 +77,7 @@ remains valid until it expires.`,
 			if noWait {
 				return json.NewEncoder(os.Stdout).Encode(invoice)
 			}
-			events, errs := ln.Invoices.Watch(ctx, invoice.Number, nil)
+			events, errs := w.Invoices.Watch(ctx, invoice.Number, nil)
 			for {
 				select {
 				case ev, ok := <-events:
@@ -113,7 +109,7 @@ remains valid until it expires.`,
 		watchCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		events, errs := ln.Invoices.Watch(watchCtx, invoice.Number, nil)
+		events, errs := w.Invoices.Watch(watchCtx, invoice.Number, nil)
 		for {
 			select {
 			case ev, ok := <-events:
@@ -152,14 +148,10 @@ var invoiceListCmd = &cobra.Command{
   lnbot invoice list --after 20
   lnbot invoice list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		limit, _ := cmd.Flags().GetInt("limit")
 		after, _ := cmd.Flags().GetInt("after")
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
@@ -169,7 +161,7 @@ var invoiceListCmd = &cobra.Command{
 			params.After = lnbot.Ptr(after)
 		}
 
-		invoices, err := ln.Invoices.List(context.Background(), params)
+		invoices, err := w.Invoices.List(context.Background(), params)
 		if err != nil {
 			return apiError("listing invoices", err)
 		}

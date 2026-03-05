@@ -32,8 +32,7 @@ Cursor, etc).
 
 Currently only --remote is supported, which uses the hosted endpoint.
 Local stdio mode is coming soon.`,
-	Example: `  lnbot mcp config --remote
-  lnbot mcp config --remote --wallet agent02`,
+	Example: `  lnbot mcp config --remote`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		remote, _ := cmd.Flags().GetBool("remote")
 
@@ -45,10 +44,7 @@ Local stdio mode is coming soon.`,
 			return nil
 		}
 
-		if err := requireConfig(); err != nil {
-			return err
-		}
-		entry, _, err := cfg.ResolveWallet(walletFlag)
+		walletID, err := resolveWalletID()
 		if err != nil {
 			return err
 		}
@@ -57,9 +53,9 @@ Local stdio mode is coming soon.`,
 			"mcpServers": map[string]any{
 				"lnbot": map[string]any{
 					"type": "url",
-					"url":  "https://api.ln.bot/mcp",
+					"url":  fmt.Sprintf("https://api.ln.bot/v1/wallets/%s/mcp", walletID),
 					"headers": map[string]string{
-						"Authorization": "Bearer " + entry.PrimaryKey,
+						"Authorization": "Bearer " + cfg.PrimaryKey,
 					},
 				},
 			},

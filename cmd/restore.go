@@ -15,8 +15,8 @@ import (
 
 var restoreCmd = &cobra.Command{
 	Use:   "restore <command>",
-	Short: "Restore a wallet from backup",
-	Long: `Restore access to a wallet using a backup method.
+	Short: "Restore an account from backup",
+	Long: `Restore access to your account using a backup method.
 
 Two methods are available:
   recovery  — restore using the 12-word passphrase
@@ -36,7 +36,7 @@ func init() {
 var restorePasskeyCmd = &cobra.Command{
 	Use:   "passkey",
 	Short: "Restore via passkey (browser only)",
-	Long: `Restore a wallet using a registered WebAuthn passkey.
+	Long: `Restore an account using a registered WebAuthn passkey.
 
 This requires a browser with WebAuthn support and is not available in
 the CLI. Use the web terminal at https://ln.bot instead.`,
@@ -49,11 +49,10 @@ the CLI. Use the web terminal at https://ln.bot instead.`,
 
 var restoreRecoveryCmd = &cobra.Command{
 	Use:   "recovery",
-	Short: "Restore a wallet via recovery passphrase",
-	Long: `Restore wallet access using the 12-word recovery passphrase.
+	Short: "Restore an account via recovery passphrase",
+	Long: `Restore account access using the 12-word recovery passphrase.
 
-This rotates all API keys — old keys stop working immediately. If the
-wallet already exists in local config it is updated in place.`,
+This rotates all API keys — old keys stop working immediately.`,
 	Example: `  lnbot restore recovery --passphrase "word1 word2 word3 ... word12"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		phrase, _ := cmd.Flags().GetString("passphrase")
@@ -63,49 +62,11 @@ wallet already exists in local config it is updated in place.`,
 			Passphrase: phrase,
 		})
 		if err != nil {
-			return apiError("restoring wallet", err)
+			return apiError("restoring account", err)
 		}
 
-		if cfg == nil {
-			cfg, err = config.Init()
-			if err != nil {
-				return err
-			}
-		}
-
-		name := ""
-		for n, entry := range cfg.Wallets {
-			if entry.ID == restored.WalletID {
-				name = n
-				break
-			}
-		}
-
-		if name == "" {
-			name = restored.Name
-			if name == "" {
-				name = "restored"
-			}
-			if _, exists := cfg.Wallets[name]; exists {
-				n := 1
-				for {
-					candidate := fmt.Sprintf("%s-%d", name, n)
-					if _, exists := cfg.Wallets[candidate]; !exists {
-						name = candidate
-						break
-					}
-					n++
-				}
-			}
-		}
-
-		cfg.Wallets[name] = config.WalletEntry{
-			ID:           restored.WalletID,
-			PrimaryKey:   restored.PrimaryKey,
-			SecondaryKey: restored.SecondaryKey,
-		}
-		cfg.Active = name
-		if err := cfg.Save(); err != nil {
+		cfg, err = config.Init(restored.PrimaryKey, restored.SecondaryKey, restored.WalletID)
+		if err != nil {
 			return err
 		}
 
@@ -113,12 +74,12 @@ wallet already exists in local config it is updated in place.`,
 			return json.NewEncoder(os.Stdout).Encode(restored)
 		}
 
-		printSuccess("Wallet restored")
-		fmt.Printf("  id:   %s\n", restored.WalletID)
-		fmt.Printf("  name: %s\n", name)
+		printSuccess("Account restored")
+		fmt.Printf("  wallet: %s\n", restored.WalletID)
+		fmt.Printf("  name:   %s\n", restored.Name)
 
 		newClient := lnbot.New(restored.PrimaryKey)
-		addrs, err := newClient.Addresses.List(context.Background())
+		addrs, err := newClient.Wallet(restored.WalletID).Addresses.List(context.Background())
 		if err == nil && len(addrs) > 0 {
 			fmt.Printf("  address: %s\n", addrs[0].Address)
 		}

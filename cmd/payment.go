@@ -36,14 +36,10 @@ var paymentListCmd = &cobra.Command{
   lnbot payment list --after 20
   lnbot payment list --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		limit, _ := cmd.Flags().GetInt("limit")
 		after, _ := cmd.Flags().GetInt("after")
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
@@ -53,7 +49,7 @@ var paymentListCmd = &cobra.Command{
 			params.After = lnbot.Ptr(after)
 		}
 
-		payments, err := ln.Payments.List(context.Background(), params)
+		payments, err := w.Payments.List(context.Background(), params)
 		if err != nil {
 			return apiError("listing payments", err)
 		}

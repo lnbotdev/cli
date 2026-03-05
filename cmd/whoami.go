@@ -16,32 +16,33 @@ var whoamiCmd = &cobra.Command{
 	Example: `  lnbot whoami
   lnbot whoami --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
-		ln, entry, name, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
+		ctx := context.Background()
+
 		if jsonFlag {
 			return json.NewEncoder(os.Stdout).Encode(map[string]string{
-				"wallet":  entry.ID,
-				"name":    name,
-				"api_key": truncateKey(entry.PrimaryKey),
+				"wallet_id": w.WalletID,
+				"api_key":   truncateKey(cfg.PrimaryKey),
 			})
 		}
 
-		fmt.Printf("  wallet:  %s\n", entry.ID)
-		fmt.Printf("  name:    %s\n", name)
+		fmt.Printf("  wallet:  %s\n", w.WalletID)
 
-		addrs, err := ln.Addresses.List(context.Background())
+		wal, err := w.Get(ctx)
+		if err == nil {
+			fmt.Printf("  name:    %s\n", wal.Name)
+		}
+
+		addrs, err := w.Addresses.List(ctx)
 		if err == nil && len(addrs) > 0 {
 			fmt.Printf("  address: %s\n", addrs[0].Address)
 		}
 
-		fmt.Printf("  api_key: %s\n", truncateKey(entry.PrimaryKey))
+		fmt.Printf("  api_key: %s\n", truncateKey(cfg.PrimaryKey))
 		return nil
 	},
 }

@@ -29,11 +29,13 @@ Grab the latest release for your platform from the [releases page](https://githu
 ## Quick start
 
 ```bash
-# Create config + first wallet
+# Register account + create first wallet
 lnbot init
-lnbot wallet create --name agent01
 
-# Receive sats (prints QR, waits for payment)
+# Create another wallet
+lnbot wallet create
+
+# Receive sats (prints BOLT11, waits for payment)
 lnbot invoice create --amount 1000 --memo "first payment"
 
 # Send sats
@@ -47,8 +49,8 @@ lnbot balance
 
 ```
 Getting Started:
-  init              Create local config file
-  wallet            Create, list, switch, rename, delete wallets
+  init              Register account and create first wallet
+  wallet            Create, list, switch, and rename wallets
 
 Money:
   balance           Show wallet balance
@@ -65,7 +67,7 @@ Identity:
 Security:
   key               Show or rotate API keys
   backup            Generate recovery passphrase or register passkey
-  restore           Restore wallet from passphrase or passkey
+  restore           Restore account from passphrase or passkey
 
 Integrations:
   webhook           Register, list, delete webhook endpoints
@@ -78,13 +80,39 @@ Every command supports `--help` for detailed usage, flags, and examples.
 
 | Flag | Description |
 |---|---|
-| `-w, --wallet <name>` | Target a specific wallet |
+| `-w, --wallet <id\|name>` | Target a specific wallet (ID or name) |
 | `--json` | Output as JSON (machine-readable) |
 | `-y, --yes` | Skip confirmation prompts |
+
+## Multi-wallet
+
+All wallets share a single user key (`uk_`). The CLI stores only the user key and the active wallet ID locally — wallet data comes from the API.
+
+```bash
+# Create wallets
+lnbot wallet create                  # auto-named
+lnbot wallet rename production       # rename it
+
+# Switch active wallet
+lnbot wallet use agent01             # by name
+lnbot wallet use wal_7x9kQ2mR       # by ID
+
+# Target a specific wallet for one command
+lnbot balance --wallet wal_abc
+lnbot pay alice@ln.bot --amount 100 --wallet agent01
+```
 
 ## Configuration
 
 Config is stored at `~/.config/lnbot/config.json`. Override the path with `LNBOT_CONFIG` env var.
+
+```json
+{
+  "primary_key": "uk_...",
+  "secondary_key": "uk_...",
+  "active_wallet_id": "wal_..."
+}
+```
 
 ## MCP integration
 
@@ -92,6 +120,7 @@ Generate config for AI agents (Claude, Cursor, etc.):
 
 ```bash
 lnbot mcp config --remote
+lnbot mcp config --remote --wallet wal_abc
 ```
 
 ## Shell completions

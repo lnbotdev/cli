@@ -39,7 +39,7 @@ func TestLoad_NoFile(t *testing.T) {
 func TestLoad_ValidJSON(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "config.json")
-	data := `{"active":"w1","wallets":{"w1":{"id":"wal_123","primary_key":"pk","secondary_key":"sk","address":"a@ln.bot"}}}`
+	data := `{"primary_key":"uk_abc123","secondary_key":"uk_def456","active_wallet_id":"wal_xyz"}`
 	os.WriteFile(p, []byte(data), 0o600)
 	t.Setenv("LNBOT_CONFIG", p)
 
@@ -47,18 +47,30 @@ func TestLoad_ValidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.Active != "w1" {
-		t.Errorf("Active = %q, want %q", cfg.Active, "w1")
+	if cfg.PrimaryKey != "uk_abc123" {
+		t.Errorf("PrimaryKey = %q, want %q", cfg.PrimaryKey, "uk_abc123")
 	}
-	if len(cfg.Wallets) != 1 {
-		t.Errorf("len(Wallets) = %d, want 1", len(cfg.Wallets))
+	if cfg.SecondaryKey != "uk_def456" {
+		t.Errorf("SecondaryKey = %q, want %q", cfg.SecondaryKey, "uk_def456")
 	}
-	w := cfg.Wallets["w1"]
-	if w.ID != "wal_123" {
-		t.Errorf("ID = %q, want %q", w.ID, "wal_123")
+	if cfg.ActiveWalletID != "wal_xyz" {
+		t.Errorf("ActiveWalletID = %q, want %q", cfg.ActiveWalletID, "wal_xyz")
 	}
-	if w.PrimaryKey != "pk" {
-		t.Errorf("PrimaryKey = %q, want %q", w.PrimaryKey, "pk")
+}
+
+func TestLoad_EmptyPrimaryKey(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	data := `{"primary_key":"","active_wallet_id":"wal_xyz"}`
+	os.WriteFile(p, []byte(data), 0o600)
+	t.Setenv("LNBOT_CONFIG", p)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg != nil {
+		t.Errorf("Load() should return nil for empty primary key, got %+v", cfg)
 	}
 }
 
@@ -79,18 +91,20 @@ func TestInit_CreatesConfig(t *testing.T) {
 	p := filepath.Join(dir, "sub", "config.json")
 	t.Setenv("LNBOT_CONFIG", p)
 
-	cfg, err := Init()
+	cfg, err := Init("uk_test", "uk_sec", "wal_123")
 	if err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
-	if cfg == nil {
-		t.Fatal("Init() returned nil")
+	if cfg.PrimaryKey != "uk_test" {
+		t.Errorf("PrimaryKey = %q, want %q", cfg.PrimaryKey, "uk_test")
 	}
-	if cfg.Wallets == nil {
-		t.Error("Init() Wallets map is nil")
+	if cfg.SecondaryKey != "uk_sec" {
+		t.Errorf("SecondaryKey = %q, want %q", cfg.SecondaryKey, "uk_sec")
+	}
+	if cfg.ActiveWalletID != "wal_123" {
+		t.Errorf("ActiveWalletID = %q, want %q", cfg.ActiveWalletID, "wal_123")
 	}
 
-	// Verify file exists
 	if _, err := os.Stat(p); err != nil {
 		t.Errorf("config file not created: %v", err)
 	}
@@ -102,19 +116,9 @@ func TestSaveAndLoad_Roundtrip(t *testing.T) {
 	t.Setenv("LNBOT_CONFIG", p)
 
 	original := &Config{
-		Active: "prod",
-		Wallets: map[string]WalletEntry{
-			"prod": {
-				ID:           "wal_abc",
-				PrimaryKey:   "key_primary",
-				SecondaryKey: "key_secondary",
-				Address:      "prod@ln.bot",
-			},
-			"staging": {
-				ID:         "wal_def",
-				PrimaryKey: "key_staging",
-			},
-		},
+		PrimaryKey:     "uk_primary",
+		SecondaryKey:   "uk_secondary",
+		ActiveWalletID: "wal_abc",
 	}
 	if err := original.Save(); err != nil {
 		t.Fatalf("Save() error = %v", err)
@@ -125,7 +129,6 @@ func TestSaveAndLoad_Roundtrip(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	// Compare via JSON for deep equality
 	origJSON, _ := json.Marshal(original)
 	loadedJSON, _ := json.Marshal(loaded)
 	if string(origJSON) != string(loadedJSON) {
@@ -138,7 +141,7 @@ func TestSave_FilePermissions(t *testing.T) {
 	p := filepath.Join(dir, "config.json")
 	t.Setenv("LNBOT_CONFIG", p)
 
-	cfg := &Config{Wallets: make(map[string]WalletEntry)}
+	cfg := &Config{PrimaryKey: "uk_test"}
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
@@ -151,131 +154,14 @@ func TestSave_FilePermissions(t *testing.T) {
 	}
 }
 
-func TestActiveWallet_NoWallets(t *testing.T) {
-	cfg := &Config{Wallets: map[string]WalletEntry{}}
-	_, _, err := cfg.ActiveWallet()
-	if err == nil {
-		t.Fatal("expected error for no wallets")
-	}
-}
-
-func TestActiveWallet_NilConfig(t *testing.T) {
-	var cfg *Config
-	_, _, err := cfg.ActiveWallet()
-	if err == nil {
-		t.Fatal("expected error for nil config")
-	}
-}
-
-func TestActiveWallet_NoActiveSet(t *testing.T) {
-	cfg := &Config{
-		Wallets: map[string]WalletEntry{"w1": {ID: "wal_1"}},
-	}
-	_, _, err := cfg.ActiveWallet()
-	if err == nil {
-		t.Fatal("expected error for no active wallet")
-	}
-}
-
-func TestActiveWallet_ActiveNotFound(t *testing.T) {
-	cfg := &Config{
-		Active:  "missing",
-		Wallets: map[string]WalletEntry{"w1": {ID: "wal_1"}},
-	}
-	_, _, err := cfg.ActiveWallet()
-	if err == nil {
-		t.Fatal("expected error for active wallet not found")
-	}
-}
-
-func TestActiveWallet_Success(t *testing.T) {
-	cfg := &Config{
-		Active: "w1",
-		Wallets: map[string]WalletEntry{
-			"w1": {ID: "wal_1", PrimaryKey: "pk"},
-		},
-	}
-	entry, name, err := cfg.ActiveWallet()
-	if err != nil {
-		t.Fatalf("ActiveWallet() error = %v", err)
-	}
-	if name != "w1" {
-		t.Errorf("name = %q, want %q", name, "w1")
-	}
-	if entry.ID != "wal_1" {
-		t.Errorf("ID = %q, want %q", entry.ID, "wal_1")
-	}
-}
-
-func TestResolveWallet_EmptyName(t *testing.T) {
-	cfg := &Config{
-		Active: "w1",
-		Wallets: map[string]WalletEntry{
-			"w1": {ID: "wal_1"},
-		},
-	}
-	entry, name, err := cfg.ResolveWallet("")
-	if err != nil {
-		t.Fatalf("ResolveWallet() error = %v", err)
-	}
-	if name != "w1" {
-		t.Errorf("name = %q, want %q", name, "w1")
-	}
-	if entry.ID != "wal_1" {
-		t.Errorf("ID = %q, want %q", entry.ID, "wal_1")
-	}
-}
-
-func TestResolveWallet_SpecificName(t *testing.T) {
-	cfg := &Config{
-		Active: "w1",
-		Wallets: map[string]WalletEntry{
-			"w1": {ID: "wal_1"},
-			"w2": {ID: "wal_2"},
-		},
-	}
-	entry, name, err := cfg.ResolveWallet("w2")
-	if err != nil {
-		t.Fatalf("ResolveWallet() error = %v", err)
-	}
-	if name != "w2" {
-		t.Errorf("name = %q, want %q", name, "w2")
-	}
-	if entry.ID != "wal_2" {
-		t.Errorf("ID = %q, want %q", entry.ID, "wal_2")
-	}
-}
-
-func TestResolveWallet_NotFound(t *testing.T) {
-	cfg := &Config{
-		Active:  "w1",
-		Wallets: map[string]WalletEntry{"w1": {ID: "wal_1"}},
-	}
-	_, _, err := cfg.ResolveWallet("missing")
-	if err == nil {
-		t.Fatal("expected error for wallet not found")
-	}
-}
-
 func TestClient_ReturnsClient(t *testing.T) {
 	cfg := &Config{
-		Active: "w1",
-		Wallets: map[string]WalletEntry{
-			"w1": {ID: "wal_1", PrimaryKey: "pk_123"},
-		},
+		PrimaryKey:     "uk_test123",
+		ActiveWalletID: "wal_abc",
 	}
-	client, entry, name, err := cfg.Client("")
-	if err != nil {
-		t.Fatalf("Client() error = %v", err)
-	}
+	client := cfg.Client()
 	if client == nil {
-		t.Fatal("Client() returned nil client")
-	}
-	if name != "w1" {
-		t.Errorf("name = %q, want %q", name, "w1")
-	}
-	if entry.PrimaryKey != "pk_123" {
-		t.Errorf("PrimaryKey = %q, want %q", entry.PrimaryKey, "pk_123")
+		t.Fatal("Client() returned nil")
 	}
 }
 
@@ -283,5 +169,22 @@ func TestAnonClient(t *testing.T) {
 	client := AnonClient()
 	if client == nil {
 		t.Fatal("AnonClient() returned nil")
+	}
+}
+
+func TestLoad_OldConfigFormat(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.json")
+	// Old format with wallets map — should be treated as no config (no primary_key)
+	data := `{"active":"w1","wallets":{"w1":{"id":"wal_123","primary_key":"pk"}}}`
+	os.WriteFile(p, []byte(data), 0o600)
+	t.Setenv("LNBOT_CONFIG", p)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg != nil {
+		t.Errorf("Load() should return nil for old config format, got %+v", cfg)
 	}
 }

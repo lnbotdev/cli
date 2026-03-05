@@ -42,10 +42,6 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
   lnbot pay alice@ln.bot --amount 500 --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
 		target := args[0]
 		params := &lnbot.CreatePaymentParams{Target: target}
 
@@ -73,7 +69,7 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 			return fmt.Errorf("unrecognized target: %s\n\nTarget must be a Lightning address (user@domain), LNURL (lnurl1...), or BOLT11 invoice (lnbc...)", format.Truncate(target, 40))
 		}
 
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
@@ -95,7 +91,7 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 
 		ctx := context.Background()
 		start := time.Now()
-		payment, err := ln.Payments.Create(ctx, params)
+		payment, err := w.Payments.Create(ctx, params)
 		if err != nil {
 			return apiError("sending payment", err)
 		}
@@ -104,7 +100,7 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 
 		if jsonFlag {
 			if !noWait && (payment.Status == "pending" || payment.Status == "processing") {
-				payment, err = waitForPaymentJSON(ctx, ln, payment)
+				payment, err = waitForPaymentJSON(ctx, w, payment)
 				if err != nil {
 					return json.NewEncoder(os.Stdout).Encode(payment)
 				}
@@ -118,11 +114,11 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 			return nil
 		}
 
-		return printPaymentResult(ctx, ln, payment, start)
+		return printPaymentResult(ctx, w, payment, start)
 	},
 }
 
-func printPaymentResult(ctx context.Context, ln *lnbot.Client, payment *lnbot.Payment, start time.Time) error {
+func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnbot.Payment, start time.Time) error {
 	switch payment.Status {
 	case "settled":
 		elapsed := time.Since(start)
@@ -135,9 +131,9 @@ func printPaymentResult(ctx context.Context, ln *lnbot.Client, payment *lnbot.Pa
 		if payment.ActualFee != nil && *payment.ActualFee > 0 {
 			fmt.Printf("  fee:     %s\n", format.Sats(*payment.ActualFee))
 		}
-		w, err := ln.Wallets.Current(ctx)
+		wal, err := w.Get(ctx)
 		if err == nil {
-			fmt.Printf("  balance: %s\n", format.Sats(w.Available))
+			fmt.Printf("  balance: %s\n", format.Sats(wal.Available))
 		}
 	case "failed":
 		reason := "unknown"
@@ -152,7 +148,7 @@ func printPaymentResult(ctx context.Context, ln *lnbot.Client, payment *lnbot.Pa
 		watchCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
-		events, errs := ln.Payments.Watch(watchCtx, payment.Number, nil)
+		events, errs := w.Payments.Watch(watchCtx, payment.Number, nil)
 		for {
 			select {
 			case ev, ok := <-events:
@@ -161,7 +157,7 @@ func printPaymentResult(ctx context.Context, ln *lnbot.Client, payment *lnbot.Pa
 					return nil
 				}
 				fmt.Println()
-				return printPaymentResult(ctx, ln, &ev.Data, start)
+				return printPaymentResult(ctx, w, &ev.Data, start)
 			case err, ok := <-errs:
 				if ok && err != nil {
 					fmt.Println()
@@ -174,11 +170,11 @@ func printPaymentResult(ctx context.Context, ln *lnbot.Client, payment *lnbot.Pa
 	return nil
 }
 
-func waitForPaymentJSON(ctx context.Context, ln *lnbot.Client, payment *lnbot.Payment) (*lnbot.Payment, error) {
+func waitForPaymentJSON(ctx context.Context, w *lnbot.WalletHandle, payment *lnbot.Payment) (*lnbot.Payment, error) {
 	watchCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	events, errs := ln.Payments.Watch(watchCtx, payment.Number, nil)
+	events, errs := w.Payments.Watch(watchCtx, payment.Number, nil)
 	for {
 		select {
 		case ev, ok := <-events:

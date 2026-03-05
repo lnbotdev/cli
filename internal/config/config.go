@@ -9,16 +9,13 @@ import (
 	lnbot "github.com/lnbotdev/go-sdk"
 )
 
-type WalletEntry struct {
-	ID           string `json:"id"`
-	PrimaryKey   string `json:"primary_key"`
-	SecondaryKey string `json:"secondary_key"`
-	Address      string `json:"address"`
-}
-
+// Config stores the CLI authentication state.
+// Only the user key and active wallet ID are persisted locally.
+// Wallet listing comes from the API.
 type Config struct {
-	Active  string                 `json:"active"`
-	Wallets map[string]WalletEntry `json:"wallets"`
+	PrimaryKey     string `json:"primary_key"`
+	SecondaryKey   string `json:"secondary_key,omitempty"`
+	ActiveWalletID string `json:"active_wallet_id,omitempty"`
 }
 
 func Path() string {
@@ -41,6 +38,9 @@ func Load() (*Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
+	if cfg.PrimaryKey == "" {
+		return nil, nil
+	}
 	return &cfg, nil
 }
 
@@ -56,44 +56,21 @@ func (c *Config) Save() error {
 	return os.WriteFile(p, append(data, '\n'), 0o600)
 }
 
-func Init() (*Config, error) {
-	cfg := &Config{Wallets: make(map[string]WalletEntry)}
+func Init(primaryKey, secondaryKey, walletID string) (*Config, error) {
+	cfg := &Config{
+		PrimaryKey:     primaryKey,
+		SecondaryKey:   secondaryKey,
+		ActiveWalletID: walletID,
+	}
 	return cfg, cfg.Save()
 }
 
-func (c *Config) ActiveWallet() (*WalletEntry, string, error) {
-	if c == nil || len(c.Wallets) == 0 {
-		return nil, "", fmt.Errorf("no wallets configured — run 'lnbot wallet create --name <n>'")
-	}
-	if c.Active == "" {
-		return nil, "", fmt.Errorf("no active wallet — run 'lnbot wallet use <name>'")
-	}
-	w, ok := c.Wallets[c.Active]
-	if !ok {
-		return nil, "", fmt.Errorf("active wallet %q not found in config", c.Active)
-	}
-	return &w, c.Active, nil
+// Client returns an authenticated API client using the user key.
+func (c *Config) Client() *lnbot.Client {
+	return lnbot.New(c.PrimaryKey)
 }
 
-func (c *Config) ResolveWallet(name string) (*WalletEntry, string, error) {
-	if name == "" {
-		return c.ActiveWallet()
-	}
-	w, ok := c.Wallets[name]
-	if !ok {
-		return nil, "", fmt.Errorf("wallet %q not found in config", name)
-	}
-	return &w, name, nil
-}
-
-func (c *Config) Client(walletName string) (*lnbot.Client, *WalletEntry, string, error) {
-	w, name, err := c.ResolveWallet(walletName)
-	if err != nil {
-		return nil, nil, "", err
-	}
-	return lnbot.New(w.PrimaryKey), w, name, nil
-}
-
+// AnonClient returns an unauthenticated API client.
 func AnonClient() *lnbot.Client {
 	return lnbot.New("")
 }

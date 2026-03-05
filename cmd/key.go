@@ -13,9 +13,9 @@ import (
 var keyCmd = &cobra.Command{
 	Use:   "key <command>",
 	Short: "Show or rotate API keys",
-	Long: `View and rotate the API keys for your wallet.
+	Long: `View and rotate your user API keys.
 
-Each wallet has two key slots: primary (0) and secondary (1).
+Each account has two key slots: primary (0) and secondary (1).
 Rotating a key revokes the old one immediately.`,
 }
 
@@ -29,28 +29,22 @@ var keyShowCmd = &cobra.Command{
 	Short: "Show API keys from local config",
 	Long:  `Print the primary and secondary API keys stored in the local config.`,
 	Example: `  lnbot key show
-  lnbot key show --wallet agent02
   lnbot key show --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if err := requireConfig(); err != nil {
 			return err
 		}
 
-		entry, _, err := cfg.ResolveWallet(walletFlag)
-		if err != nil {
-			return err
-		}
-
 		if jsonFlag {
 			return json.NewEncoder(os.Stdout).Encode(map[string]string{
-				"primary_key":   entry.PrimaryKey,
-				"secondary_key": entry.SecondaryKey,
+				"primary_key":   cfg.PrimaryKey,
+				"secondary_key": cfg.SecondaryKey,
 			})
 		}
 
-		fmt.Printf("  primary:   %s\n", entry.PrimaryKey)
-		if entry.SecondaryKey != "" {
-			fmt.Printf("  secondary: %s\n", entry.SecondaryKey)
+		fmt.Printf("  primary:   %s\n", cfg.PrimaryKey)
+		if cfg.SecondaryKey != "" {
+			fmt.Printf("  secondary: %s\n", cfg.SecondaryKey)
 		}
 		return nil
 	},
@@ -91,23 +85,16 @@ The new key is printed once — save it. The local config is updated automatical
 			}
 		}
 
-		ln, entry, name, err := cfg.Client(walletFlag)
-		if err != nil {
-			return err
-		}
-
-		rotated, err := ln.Keys.Rotate(context.Background(), slot)
+		rotated, err := cfg.Client().Keys.Rotate(context.Background(), slot)
 		if err != nil {
 			return apiError("rotating key", err)
 		}
 
 		if slot == 0 {
-			entry.PrimaryKey = rotated.Key
+			cfg.PrimaryKey = rotated.Key
 		} else {
-			entry.SecondaryKey = rotated.Key
+			cfg.SecondaryKey = rotated.Key
 		}
-
-		cfg.Wallets[name] = *entry
 		if err := cfg.Save(); err != nil {
 			return err
 		}

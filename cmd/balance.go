@@ -16,30 +16,26 @@ var balanceCmd = &cobra.Command{
 	Short: "Show wallet balance",
 	Long:  `Display the current balance, available amount, and on-hold amount for the active wallet.`,
 	Example: `  lnbot balance
-  lnbot balance --wallet agent02
+  lnbot balance --wallet wal_abc
   lnbot balance --json`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := requireConfig(); err != nil {
-			return err
-		}
-
-		ln, _, _, err := cfg.Client(walletFlag)
+		w, err := resolveWallet()
 		if err != nil {
 			return err
 		}
 
-		w, err := ln.Wallets.Current(context.Background())
+		wal, err := w.Get(context.Background())
 		if err != nil {
 			return apiError("fetching balance", err)
 		}
 
 		if jsonFlag {
-			return json.NewEncoder(os.Stdout).Encode(w)
+			return json.NewEncoder(os.Stdout).Encode(wal)
 		}
 
-		fmt.Printf("  balance:   %s\n", format.Sats(w.Balance))
-		fmt.Printf("  available: %s\n", format.Sats(w.Available))
-		fmt.Printf("  on hold:   %s\n", format.Sats(w.OnHold))
+		fmt.Printf("  balance:   %s\n", format.Sats(wal.Balance))
+		fmt.Printf("  available: %s\n", format.Sats(wal.Available))
+		fmt.Printf("  on hold:   %s\n", format.Sats(wal.OnHold))
 		return nil
 	},
 }
