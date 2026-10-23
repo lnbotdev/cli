@@ -33,9 +33,9 @@ var balanceCmd = &cobra.Command{
 			return json.NewEncoder(os.Stdout).Encode(wal)
 		}
 
-		fmt.Printf("  balance:   %s\n", format.Sats(wal.Balance))
-		fmt.Printf("  available: %s\n", format.Sats(wal.Available))
-		fmt.Printf("  on hold:   %s\n", format.Sats(wal.OnHold))
+		fmt.Printf("  Balance:   %s\n", format.BTC(wal.Balance))
+		fmt.Printf("  Available: %s\n", format.BTC(wal.Available))
+		fmt.Printf("  On hold:   %s\n", format.BTC(wal.OnHold))
 		return nil
 	},
 }

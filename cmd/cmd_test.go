@@ -510,3 +510,61 @@ func TestKeyRotate_NonNumericSlot(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+// resetPayFlags puts pay's flags back after a test sets them: cobra keeps
+// flag values between executions in one process.
+func resetPayFlags(t *testing.T) {
+	t.Helper()
+	t.Cleanup(func() {
+		payCmd.Flags().Set("all", "false")
+		payCmd.Flags().Set("amount", "0")
+		payCmd.Flags().Set("max-fee", "0")
+	})
+}
+
+func TestPay_AllWithAmount(t *testing.T) {
+	setupConfig(t, testConfig())
+	resetPayFlags(t)
+
+	_, _, err := executeCmd("pay", "user@domain.com", "--all", "--amount", "5", "--yes")
+	if err == nil || !strings.Contains(err.Error(), "not both") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestPay_AllWithMaxFee(t *testing.T) {
+	setupConfig(t, testConfig())
+	resetPayFlags(t)
+
+	_, _, err := executeCmd("pay", "user@domain.com", "--all", "--max-fee", "50", "--yes")
+	if err == nil || !strings.Contains(err.Error(), "--max-fee") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestPay_AllWithBolt11(t *testing.T) {
+	setupConfig(t, testConfig())
+	resetPayFlags(t)
+
+	_, _, err := executeCmd("pay", "lnbc10u1pj9x", "--all", "--yes")
+	if err == nil || !strings.Contains(err.Error(), "BOLT11") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestFeeSummary(t *testing.T) {
+	tests := []struct {
+		name string
+		p    lnbot.Payment
+		want string
+	}{
+		{"internal", lnbot.Payment{ActualFee: lnbot.Ptr(int64(0))}, "₿0"},
+		{"not settled", lnbot.Payment{}, "₿0"},
+		{"external", lnbot.Payment{ActualFee: lnbot.Ptr(int64(698)), ServiceFee: 625}, "₿1,323 (network ₿698, service ₿625)"},
+	}
+	for _, tt := range tests {
+		if got := feeSummary(&tt.p); got != tt.want {
+			t.Errorf("%s: feeSummary = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}

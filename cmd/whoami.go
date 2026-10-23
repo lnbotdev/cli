@@ -30,19 +30,19 @@ var whoamiCmd = &cobra.Command{
 			})
 		}
 
-		fmt.Printf("  wallet:  %s\n", w.WalletID)
+		fmt.Printf("  Wallet:   %s\n", w.WalletID)
 
 		wal, err := w.Get(ctx)
 		if err == nil {
-			fmt.Printf("  name:    %s\n", wal.Name)
+			fmt.Printf("  Name:     %s\n", wal.Name)
 		}
 
 		addrs, err := w.Addresses.List(ctx)
 		if err == nil && len(addrs) > 0 {
-			fmt.Printf("  address: %s\n", addrs[0].Address)
+			fmt.Printf("  Address:  %s\n", addrs[0].Address)
 		}
 
-		fmt.Printf("  api_key: %s\n", truncateKey(cfg.PrimaryKey))
+		fmt.Printf("  API key:  %s\n", truncateKey(cfg.PrimaryKey))
 		return nil
 	},
 }

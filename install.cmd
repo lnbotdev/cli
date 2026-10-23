@@ -71,7 +71,7 @@ echo lnbot %VERSION% installed to %INSTALL_DIR%\%BINARY%
 echo.
 echo   Get started:
 echo     lnbot init
-echo     lnbot wallet create --name agent01
+echo     lnbot invoice create --amount 1000
 echo.
 echo   Restart your terminal for PATH changes to take effect.
 

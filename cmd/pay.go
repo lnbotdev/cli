@@ -17,28 +17,40 @@ import (
 
 var payCmd = &cobra.Command{
 	Use:   "pay <target>",
-	Short: "Send sats to a Lightning address, LNURL, or BOLT11 invoice",
-	Long: `Send sats via the Lightning Network. The target can be:
+	Short: "Send bitcoin to a Lightning address, LNURL or BOLT11 invoice",
+	Long: `Send bitcoin over the Lightning Network. The target can be:
 
-  - A Lightning address (user@domain) — requires --amount
-  - An LNURL (lnurl1...) — requires --amount
-  - A BOLT11 invoice (starts with lnbc/lntb/lnbs) — amount is encoded
+  - A Lightning address (user@domain): needs --amount or --all
+  - An LNURL (lnurl1...): needs --amount or --all
+  - A BOLT11 invoice (lnbc..., lntb..., lnbs...): the amount is in the invoice
 
-A confirmation prompt is shown before sending. Use --yes to skip it.
-The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
+Before it asks, pay shows the amount, the fees and the total. Payments
+between ln.bot wallets are free. A payment out to Lightning pays a service
+fee of 0.25% (at least ₿1) and the network fee: 0.25% plus Lightning
+routing. The network fee is capped at 1% of the amount, at least ₿20,
+unless you set --max-fee.
+
+Use --yes to skip the fee quote and the confirmation prompt. The CLI waits
+for settlement; use --no-wait to return immediately.`,
 	Example: `  # Pay a Lightning address
   lnbot pay alice@ln.bot --amount 1000
 
-  # Pay a BOLT11 invoice (amount is in the invoice)
+  # Pay a BOLT11 invoice (the amount is in the invoice)
   lnbot pay lnbc10u1pj9x...
 
   # Pay an LNURL
   lnbot pay lnurl1dp68gurn8ghj7... --amount 500
 
+  # Send everything the wallet can to a Lightning address
+  lnbot pay alice@example.com --all
+
+  # Allow a higher network fee than the default cap
+  lnbot pay alice@example.com --amount 2000 --max-fee 100
+
   # Return immediately without waiting for settlement
   lnbot pay alice@ln.bot --amount 500 --no-wait
 
-  # Skip the confirmation prompt
+  # Skip the fee quote and the confirmation prompt
   lnbot pay alice@ln.bot --amount 500 --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -54,11 +66,23 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 
 		amount, _ := cmd.Flags().GetInt64("amount")
 		maxFee, _ := cmd.Flags().GetInt64("max-fee")
+		all, _ := cmd.Flags().GetBool("all")
+
+		if all {
+			switch {
+			case amount > 0:
+				return fmt.Errorf("use --amount or --all, not both")
+			case maxFee > 0:
+				return fmt.Errorf("--all sends what the default network fee cap allows; leave out --max-fee")
+			case isBolt11:
+				return fmt.Errorf("--all works with a Lightning address or LNURL; a BOLT11 invoice sets its own amount")
+			}
+		}
 
 		if amount > 0 {
 			params.Amount = lnbot.Ptr(amount)
-		} else if isAddress || isLNURL {
-			return fmt.Errorf("--amount is required when paying a Lightning address or LNURL\n\n  lnbot pay %s --amount <sats>", format.Truncate(target, 40))
+		} else if (isAddress || isLNURL) && !all {
+			return fmt.Errorf("--amount is required when paying a Lightning address or LNURL (or --all to send everything)\n\n  lnbot pay %s --amount <sats>", format.Truncate(target, 40))
 		}
 
 		if maxFee > 0 {
@@ -74,22 +98,48 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 			return err
 		}
 
+		ctx := context.Background()
+
+		if all {
+			res, err := w.Payments.Resolve(ctx, target)
+			if err != nil {
+				return apiError("checking recipient", err)
+			}
+			if res.MaxSendable == nil || *res.MaxSendable <= 0 {
+				msg := "the balance doesn't cover this recipient's minimum after fees"
+				if res.Min != nil {
+					msg += fmt.Sprintf(" (%s)", format.BTC(*res.Min))
+				}
+				return fmt.Errorf("%s", msg)
+			}
+			amount = *res.MaxSendable
+			params.Amount = lnbot.Ptr(amount)
+		}
+
 		if !yesFlag {
+			quote, err := quotePayment(ctx, w, target, amount)
+			if err != nil {
+				return apiError("pricing payment", err)
+			}
+			printQuote(quote)
+			if quote.FeeWarning != nil && maxFee == 0 {
+				return fmt.Errorf("the network fee is above the default cap; pass --max-fee <sats> to allow it")
+			}
+			if quote.Amount != nil {
+				amount = *quote.Amount
+			}
+
 			desc := format.Truncate(target, 50)
+			prompt := fmt.Sprintf("Pay %s?", desc)
 			if amount > 0 {
-				if !confirm(fmt.Sprintf("Send %s to %s?", format.Sats(amount), desc)) {
-					fmt.Println("Cancelled.")
-					return nil
-				}
-			} else {
-				if !confirm(fmt.Sprintf("Pay %s?", desc)) {
-					fmt.Println("Cancelled.")
-					return nil
-				}
+				prompt = fmt.Sprintf("Send %s to %s?", format.BTC(amount), desc)
+			}
+			if !confirm(prompt) {
+				fmt.Println("Cancelled.")
+				return nil
 			}
 		}
 
-		ctx := context.Background()
 		start := time.Now()
 		payment, err := w.Payments.Create(ctx, params)
 		if err != nil {
@@ -109,8 +159,8 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 		}
 
 		if noWait {
-			fmt.Printf("  status: %s\n", payment.Status)
-			fmt.Printf("  number: %d\n", payment.Number)
+			fmt.Printf("  Status:  %s\n", format.Cap(payment.Status))
+			fmt.Printf("  Number:  %d\n", payment.Number)
 			return nil
 		}
 
@@ -118,22 +168,82 @@ The CLI waits for settlement via SSE. Use --no-wait to return immediately.`,
 	},
 }
 
+// quotePayment prices the payment: a BOLT11 invoice at its own amount, a
+// Lightning address or LNURL at amount.
+func quotePayment(ctx context.Context, w *lnbot.WalletHandle, target string, amount int64) (*lnbot.ResolveTargetResponse, error) {
+	if amount > 0 {
+		return w.Payments.ResolveWithAmount(ctx, target, amount)
+	}
+	return w.Payments.Resolve(ctx, target)
+}
+
+// printQuote shows what the payment will cost before it is sent.
+func printQuote(q *lnbot.ResolveTargetResponse) {
+	if q.Amount == nil {
+		return
+	}
+	rows := [][2]string{{"Amount:", format.BTC(*q.Amount)}}
+	estimated := q.NetworkFeeEstimate != nil
+	if q.Internal {
+		rows = append(rows, [2]string{"Fees:", "₿0 (to an ln.bot wallet)"})
+	} else {
+		switch {
+		case estimated:
+			rows = append(rows, [2]string{"Network fee:", format.BTC(*q.NetworkFeeEstimate) + " (estimate)"})
+		case q.MaxFee != nil:
+			rows = append(rows, [2]string{"Network fee:", "Up to " + format.BTC(*q.MaxFee)})
+		}
+		if q.ServiceFee != nil {
+			rows = append(rows, [2]string{"Service fee:", format.BTC(*q.ServiceFee)})
+		}
+	}
+	if q.Total != nil {
+		total := format.BTC(*q.Total)
+		if !q.Internal && !estimated {
+			total = "Up to " + total
+		}
+		rows = append(rows, [2]string{"Total:", total})
+	}
+
+	width := 0
+	for _, r := range rows {
+		width = max(width, len(r[0]))
+	}
+	for _, r := range rows {
+		fmt.Printf("  %-*s  %s\n", width, r[0], r[1])
+	}
+	if q.FeeWarning != nil {
+		printWarning(*q.FeeWarning)
+	}
+}
+
+// feeSummary is what a settled payment cost on top of its amount.
+func feeSummary(p *lnbot.Payment) string {
+	var network int64
+	if p.ActualFee != nil {
+		network = *p.ActualFee
+	}
+	total := network + p.ServiceFee
+	if total == 0 {
+		return format.BTC(0)
+	}
+	return fmt.Sprintf("%s (network %s, service %s)", format.BTC(total), format.BTC(network), format.BTC(p.ServiceFee))
+}
+
 func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnbot.Payment, start time.Time) error {
 	switch payment.Status {
 	case "settled":
 		elapsed := time.Since(start)
 		if elapsed < 100*time.Millisecond {
-			printSuccess("Sent! Settled instantly")
+			printSuccess("Payment settled instantly")
 		} else {
-			printSuccess(fmt.Sprintf("Sent! Settled in %dms", elapsed.Milliseconds()))
+			printSuccess(fmt.Sprintf("Payment settled in %dms", elapsed.Milliseconds()))
 		}
-		fmt.Printf("  amount:  %s\n", format.Sats(payment.Amount))
-		if payment.ActualFee != nil && *payment.ActualFee > 0 {
-			fmt.Printf("  fee:     %s\n", format.Sats(*payment.ActualFee))
-		}
+		fmt.Printf("  Amount:     %s\n", format.BTC(payment.Amount))
+		fmt.Printf("  Fees:       %s\n", feeSummary(payment))
 		wal, err := w.Get(ctx)
 		if err == nil {
-			fmt.Printf("  balance: %s\n", format.Sats(wal.Available))
+			fmt.Printf("  Available:  %s\n", format.BTC(wal.Available))
 		}
 	case "failed":
 		reason := "unknown"
@@ -141,58 +251,45 @@ func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnb
 			reason = *payment.FailureReason
 		}
 		fmt.Fprintf(os.Stderr, "✗ Payment failed: %s\n", reason)
-		fmt.Fprintln(os.Stderr, "  No sats were deducted.")
+		fmt.Fprintln(os.Stderr, "  Nothing was deducted.")
 	default:
 		fmt.Print("  Waiting for settlement... (Ctrl+C to stop)")
-
-		watchCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		events, errs := w.Payments.Watch(watchCtx, payment.Number, nil)
-		for {
-			select {
-			case ev, ok := <-events:
-				if !ok {
-					fmt.Println()
-					return nil
-				}
-				fmt.Println()
-				return printPaymentResult(ctx, w, &ev.Data, start)
-			case err, ok := <-errs:
-				if ok && err != nil {
-					fmt.Println()
-					return err
-				}
-				return nil
+		result, err := watchPayment(ctx, w, payment.Number)
+		fmt.Println()
+		if err != nil {
+			return err
+		}
+		if result == nil {
+			// The stream ended first: read the payment as it is now.
+			if latest, err := w.Payments.Get(ctx, payment.Number); err == nil {
+				result = latest
 			}
 		}
+		if result != nil && (result.Status == "settled" || result.Status == "failed") {
+			return printPaymentResult(ctx, w, result, start)
+		}
+		fmt.Printf("  Still %s. ln.bot keeps retrying it; check with 'lnbot payment list'.\n", payment.Status)
 	}
 	return nil
 }
 
 func waitForPaymentJSON(ctx context.Context, w *lnbot.WalletHandle, payment *lnbot.Payment) (*lnbot.Payment, error) {
-	watchCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	events, errs := w.Payments.Watch(watchCtx, payment.Number, nil)
-	for {
-		select {
-		case ev, ok := <-events:
-			if !ok {
-				return payment, nil
-			}
-			return &ev.Data, nil
-		case err, ok := <-errs:
-			if ok && err != nil {
-				return payment, err
-			}
-			return payment, nil
-		}
+	result, err := watchPayment(ctx, w, payment.Number)
+	if err != nil {
+		return payment, err
 	}
+	if result == nil {
+		if latest, err := w.Payments.Get(ctx, payment.Number); err == nil {
+			return latest, nil
+		}
+		return payment, nil
+	}
+	return result, nil
 }
 
 func init() {
-	payCmd.Flags().Int64("amount", 0, "amount in sats (required for Lightning addresses and LNURLs)")
-	payCmd.Flags().Int64("max-fee", 0, "maximum routing fee in sats")
-	payCmd.Flags().Bool("no-wait", false, "return immediately without waiting for settlement")
+	payCmd.Flags().Int64("amount", 0, "Amount to send in sats, so 1000 is ₿1,000 (required for Lightning addresses and LNURLs)")
+	payCmd.Flags().Int64("max-fee", 0, "Most to pay in network fees, in sats (default: 1% of the amount, at least 20)")
+	payCmd.Flags().Bool("all", false, "Send everything the wallet can, after fees (Lightning addresses and LNURLs)")
+	payCmd.Flags().Bool("no-wait", false, "Return as soon as the API accepts the payment")
 }

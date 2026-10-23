@@ -20,8 +20,8 @@ var paymentCmd = &cobra.Command{
 }
 
 func init() {
-	paymentListCmd.Flags().Int("limit", 20, "max number of results")
-	paymentListCmd.Flags().Int("after", 0, "show results after this payment number (for pagination)")
+	paymentListCmd.Flags().Int("limit", 20, "Max number of results")
+	paymentListCmd.Flags().Int("after", 0, "Show results after this payment number (for pagination)")
 
 	paymentCmd.AddCommand(paymentListCmd)
 }
@@ -68,10 +68,10 @@ var paymentListCmd = &cobra.Command{
 			if addr == "" {
 				addr = "--"
 			}
-			fmt.Printf("  #%4d  %-8s  %10s sats  %8s  %s\n",
+			fmt.Printf("  #%4d  %-10s  %12s  %8s  %s\n",
 				p.Number,
-				p.Status,
-				format.SatsPlain(p.Amount),
+				format.Cap(p.Status),
+				format.BTC(p.Amount),
 				format.TimeAgo(p.CreatedAt),
 				format.Truncate(addr, 40),
 			)
@@ -79,7 +79,7 @@ var paymentListCmd = &cobra.Command{
 
 		if len(payments) == limit {
 			last := payments[len(payments)-1].Number
-			fmt.Printf("\n  %d shown — next page: --after %d\n", limit, last)
+			fmt.Printf("\n  %d shown. Next page: --after %d\n", limit, last)
 		}
 		return nil
 	},

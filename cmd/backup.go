@@ -15,8 +15,8 @@ var backupCmd = &cobra.Command{
 	Long: `Create a backup so you can recover your account later.
 
 Two methods are available:
-  recovery  — generates a 12-word passphrase you can store offline
-  passkey   — registers a WebAuthn passkey (browser only)`,
+  recovery  Generates a 12-word passphrase you can store offline
+  passkey   Registers a WebAuthn passkey (browser only)`,
 }
 
 func init() {
@@ -34,7 +34,7 @@ the CLI. Use the web terminal at https://ln.bot instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "Passkey registration requires a browser with WebAuthn support.")
 		fmt.Fprintln(os.Stderr, "Use the web terminal at https://ln.bot instead.")
-		return fmt.Errorf("not supported in the CLI — use the web terminal")
+		return fmt.Errorf("not supported in the CLI: use the web terminal")
 	},
 }
 
@@ -43,7 +43,7 @@ var backupRecoveryCmd = &cobra.Command{
 	Short: "Generate a 12-word recovery passphrase",
 	Long: `Generate a new recovery passphrase for your account.
 
-The passphrase is shown once — save it somewhere safe. Any previous
+The passphrase is shown once, so save it somewhere safe. Any previous
 recovery passphrase becomes invalid.`,
 	Example: `  lnbot backup recovery`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -60,7 +60,7 @@ recovery passphrase becomes invalid.`,
 			return json.NewEncoder(os.Stdout).Encode(backup)
 		}
 
-		printWarning("Recovery passphrase (save this — shown only once):")
+		printWarning("Recovery passphrase, shown only once. Keep it safe:")
 		fmt.Printf("  %s\n", backup.Passphrase)
 		fmt.Println()
 		fmt.Println("  Any previous recovery passphrase is now invalid.")

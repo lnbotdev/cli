@@ -52,15 +52,15 @@ var statusCmd = &cobra.Command{
 			})
 		}
 
-		fmt.Printf("  name:      %s\n", wal.Name)
-		fmt.Printf("  id:        %s\n", wal.WalletID)
+		fmt.Printf("  Name:      %s\n", wal.Name)
+		fmt.Printf("  ID:        %s\n", wal.WalletID)
 		if firstAddr != "" {
-			fmt.Printf("  address:   %s\n", firstAddr)
+			fmt.Printf("  Address:   %s\n", firstAddr)
 		}
-		fmt.Printf("  balance:   %s\n", format.Sats(wal.Balance))
-		fmt.Printf("  available: %s\n", format.Sats(wal.Available))
-		fmt.Printf("  on hold:   %s\n", format.Sats(wal.OnHold))
-		fmt.Printf("  api:       ✓ connected (%dms)\n", latency.Milliseconds())
+		fmt.Printf("  Balance:   %s\n", format.BTC(wal.Balance))
+		fmt.Printf("  Available: %s\n", format.BTC(wal.Available))
+		fmt.Printf("  On hold:   %s\n", format.BTC(wal.OnHold))
+		fmt.Printf("  API:       ✓ Connected (%dms)\n", latency.Milliseconds())
 		return nil
 	},
 }

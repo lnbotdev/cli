@@ -8,6 +8,8 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+
+	"github.com/lnbotdev/cli/internal/format"
 )
 
 var keyCmd = &cobra.Command{
@@ -42,9 +44,9 @@ var keyShowCmd = &cobra.Command{
 			})
 		}
 
-		fmt.Printf("  primary:   %s\n", cfg.PrimaryKey)
+		fmt.Printf("  Primary:   %s\n", cfg.PrimaryKey)
 		if cfg.SecondaryKey != "" {
-			fmt.Printf("  secondary: %s\n", cfg.SecondaryKey)
+			fmt.Printf("  Secondary: %s\n", cfg.SecondaryKey)
 		}
 		return nil
 	},
@@ -59,7 +61,7 @@ Slots:
   0  primary key
   1  secondary key
 
-The new key is printed once — save it. The local config is updated automatically.`,
+The new key is printed once, so save it. The local config is updated automatically.`,
 	Example: `  lnbot key rotate 0
   lnbot key rotate 1 --yes`,
 	Args: cobra.ExactArgs(1),
@@ -79,7 +81,7 @@ The new key is printed once — save it. The local config is updated automatical
 		}
 
 		if !yesFlag {
-			if !confirm(fmt.Sprintf("Rotate %s key? The old key will stop working.", slotLabel)) {
+			if !confirm(fmt.Sprintf("Rotate the %s key? The old key will stop working.", slotLabel)) {
 				fmt.Println("Cancelled.")
 				return nil
 			}
@@ -99,10 +101,10 @@ The new key is printed once — save it. The local config is updated automatical
 			return err
 		}
 
-		printSuccess(fmt.Sprintf("%s key rotated", slotLabel))
-		fmt.Printf("  key: %s\n", rotated.Key)
+		printSuccess(fmt.Sprintf("%s key rotated", format.Cap(slotLabel)))
+		fmt.Printf("  Key: %s\n", rotated.Key)
 		fmt.Println()
-		fmt.Println("  Save this — it won't be shown again.")
+		fmt.Println("  Save it now: it won't be shown again.")
 		return nil
 	},
 }

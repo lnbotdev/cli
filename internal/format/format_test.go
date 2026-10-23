@@ -32,43 +32,38 @@ func TestCommafy(t *testing.T) {
 	}
 }
 
-func TestSats(t *testing.T) {
+func TestBTC(t *testing.T) {
 	tests := []struct {
 		name   string
 		amount int64
 		want   string
 	}{
-		{"zero", 0, "0 sats"},
-		{"positive", 1000, "1,000 sats"},
-		{"large", 1234567, "1,234,567 sats"},
-		{"negative", -500, "-500 sats"},
+		{"zero", 0, "₿0"},
+		{"positive", 1000, "₿1,000"},
+		{"large", 1234567, "₿1,234,567"},
+		{"negative", -500, "-₿500"},
+		{"negative thousands", -1234, "-₿1,234"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Sats(tt.amount); got != tt.want {
-				t.Errorf("Sats(%d) = %q, want %q", tt.amount, got, tt.want)
+			if got := BTC(tt.amount); got != tt.want {
+				t.Errorf("BTC(%d) = %q, want %q", tt.amount, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestSatsPlain(t *testing.T) {
-	tests := []struct {
-		name   string
-		amount int64
-		want   string
-	}{
-		{"zero", 0, "0"},
-		{"positive", 1000, "1,000"},
-		{"negative", -500, "-500"},
-		{"large", 1234567, "1,234,567"},
+func TestCap(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"", ""},
+		{"settled", "Settled"},
+		{"pending", "Pending"},
+		{"Failed", "Failed"},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := SatsPlain(tt.amount); got != tt.want {
-				t.Errorf("SatsPlain(%d) = %q, want %q", tt.amount, got, tt.want)
-			}
-		})
+		if got := Cap(tt.in); got != tt.want {
+			t.Errorf("Cap(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }
 

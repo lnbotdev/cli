@@ -16,20 +16,20 @@ import (
 var invoiceCmd = &cobra.Command{
 	Use:   "invoice <command>",
 	Short: "Create and list Lightning invoices",
-	Long: `Create invoices to receive sats, and list past invoices.
+	Long: `Create invoices to receive bitcoin, and list past invoices.
 
-When you create an invoice the CLI prints a QR code and waits for
-payment via Server-Sent Events. Press Ctrl+C to stop waiting.`,
+When you create an invoice the CLI prints its BOLT11 string and waits
+for payment via Server-Sent Events. Press Ctrl+C to stop waiting.`,
 }
 
 func init() {
-	invoiceCreateCmd.Flags().Int64("amount", 0, "amount in sats (required)")
+	invoiceCreateCmd.Flags().Int64("amount", 0, "Amount to receive in sats, so 1000 is ₿1,000 (required)")
 	invoiceCreateCmd.MarkFlagRequired("amount")
-	invoiceCreateCmd.Flags().String("memo", "", "short description attached to the invoice")
-	invoiceCreateCmd.Flags().Bool("no-wait", false, "return immediately without waiting for payment")
+	invoiceCreateCmd.Flags().String("memo", "", "Short description attached to the invoice")
+	invoiceCreateCmd.Flags().Bool("no-wait", false, "Return immediately without waiting for payment")
 
-	invoiceListCmd.Flags().Int("limit", 20, "max number of results")
-	invoiceListCmd.Flags().Int("after", 0, "show results after this invoice number (for pagination)")
+	invoiceListCmd.Flags().Int("limit", 20, "Max number of results")
+	invoiceListCmd.Flags().Int("after", 0, "Show results after this invoice number (for pagination)")
 
 	invoiceCmd.AddCommand(invoiceCreateCmd)
 	invoiceCmd.AddCommand(invoiceListCmd)
@@ -37,12 +37,13 @@ func init() {
 
 var invoiceCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a Lightning invoice to receive sats",
+	Short: "Create a Lightning invoice to receive bitcoin",
 	Long: `Create a new Lightning invoice for the given amount.
 
-Prints the BOLT11 string and automatically waits for the payment to
-settle via SSE. Use --no-wait to return immediately. The invoice
-remains valid until it expires.`,
+Prints the BOLT11 string and waits for the payment to settle via SSE.
+Use --no-wait to return immediately. The invoice is valid for 60 minutes.
+An invoice paid just before it expires can still settle, so after it
+expires the CLI keeps checking for another minute.`,
 	Example: `  lnbot invoice create --amount 1000
   lnbot invoice create --amount 5000 --memo "for coffee"
   lnbot invoice create --amount 100 --no-wait
@@ -77,26 +78,16 @@ remains valid until it expires.`,
 			if noWait {
 				return json.NewEncoder(os.Stdout).Encode(invoice)
 			}
-			events, errs := w.Invoices.Watch(ctx, invoice.Number, nil)
-			for {
-				select {
-				case ev, ok := <-events:
-					if !ok {
-						return json.NewEncoder(os.Stdout).Encode(invoice)
-					}
-					return json.NewEncoder(os.Stdout).Encode(ev.Data)
-				case err, ok := <-errs:
-					if ok && err != nil {
-						return json.NewEncoder(os.Stdout).Encode(invoice)
-					}
-					return json.NewEncoder(os.Stdout).Encode(invoice)
-				}
+			final, err := waitForInvoice(ctx, w, invoice.Number, nil)
+			if err != nil {
+				return json.NewEncoder(os.Stdout).Encode(invoice)
 			}
+			return json.NewEncoder(os.Stdout).Encode(final)
 		}
 
-		fmt.Printf("  amount:  %s\n", format.Sats(invoice.Amount))
-		fmt.Printf("  status:  %s\n", invoice.Status)
-		fmt.Println("  bolt11:")
+		fmt.Printf("  Amount:  %s\n", format.BTC(invoice.Amount))
+		fmt.Printf("  Status:  %s\n", format.Cap(invoice.Status))
+		fmt.Println("  BOLT11:")
 		fmt.Printf("  %s\n", invoice.Bolt11)
 		fmt.Println()
 
@@ -106,35 +97,20 @@ remains valid until it expires.`,
 
 		fmt.Print("  Waiting for payment... (Ctrl+C to stop)")
 
-		watchCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-
-		events, errs := w.Invoices.Watch(watchCtx, invoice.Number, nil)
-		for {
-			select {
-			case ev, ok := <-events:
-				if !ok {
-					fmt.Println()
-					return nil
-				}
-				switch ev.Event {
-				case "settled":
-					fmt.Println()
-					printSuccess(fmt.Sprintf("Payment received! +%s", format.Sats(invoice.Amount)))
-					return nil
-				case "expired":
-					fmt.Println()
-					fmt.Println("  Invoice expired.")
-					return nil
-				}
-			case err, ok := <-errs:
-				if ok && err != nil {
-					fmt.Println()
-					return err
-				}
-				return nil
-			}
+		final, err := waitForInvoice(ctx, w, invoice.Number, func() {
+			fmt.Println()
+			fmt.Print("  Invoice expired. Checking for a payment made just before it did...")
+		})
+		fmt.Println()
+		if err != nil {
+			return err
 		}
+		if final.Status == "settled" {
+			printSuccess(fmt.Sprintf("Payment received: +%s", format.BTC(final.Amount)))
+			return nil
+		}
+		fmt.Println("  No payment arrived.")
+		return nil
 	},
 }
 
@@ -176,17 +152,17 @@ var invoiceListCmd = &cobra.Command{
 		}
 
 		for _, inv := range invoices {
-			fmt.Printf("  #%4d  %-8s  %10s sats  %s\n",
+			fmt.Printf("  #%4d  %-8s  %12s  %s\n",
 				inv.Number,
-				inv.Status,
-				format.SatsPlain(inv.Amount),
+				format.Cap(inv.Status),
+				format.BTC(inv.Amount),
 				format.TimeAgo(inv.CreatedAt),
 			)
 		}
 
 		if len(invoices) == limit {
 			last := invoices[len(invoices)-1].Number
-			fmt.Printf("\n  %d shown — next page: --after %d\n", limit, last)
+			fmt.Printf("\n  %d shown. Next page: --after %d\n", limit, last)
 		}
 		return nil
 	},

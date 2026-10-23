@@ -261,10 +261,10 @@ func TestInteg_Balance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("balance failed: %v", err)
 	}
-	if !strings.Contains(stdout, "balance:") {
+	if !strings.Contains(stdout, "Balance:") {
 		t.Errorf("expected 'balance:' in output, got %q", stdout)
 	}
-	if !strings.Contains(stdout, "available:") {
+	if !strings.Contains(stdout, "Available:") {
 		t.Errorf("expected 'available:' in output, got %q", stdout)
 	}
 }
@@ -303,8 +303,8 @@ func TestInteg_Status(t *testing.T) {
 	if err != nil {
 		t.Fatalf("status failed: %v", err)
 	}
-	if !strings.Contains(stdout, "connected") {
-		t.Errorf("expected 'connected' in output, got %q", stdout)
+	if !strings.Contains(stdout, "Connected") {
+		t.Errorf("expected 'Connected' in output, got %q", stdout)
 	}
 	if !strings.Contains(stdout, fundedWalletID) {
 		t.Errorf("expected wallet ID in output, got %q", stdout)
@@ -467,7 +467,7 @@ func TestInteg_Invoice_Create_NoWait(t *testing.T) {
 	if !strings.Contains(stdout, "lnbc") {
 		t.Errorf("expected bolt11 in output, got %q", stdout)
 	}
-	if !strings.Contains(stdout, "100 sats") {
+	if !strings.Contains(stdout, "₿100") {
 		t.Errorf("expected amount in output, got %q", stdout)
 	}
 }
@@ -508,7 +508,7 @@ func TestInteg_Invoice_List(t *testing.T) {
 	if err != nil {
 		t.Fatalf("invoice list failed: %v", err)
 	}
-	if !strings.Contains(stdout, "pending") && !strings.Contains(stdout, "settled") && !strings.Contains(stdout, "expired") {
+	if !strings.Contains(stdout, "Pending") && !strings.Contains(stdout, "Settled") && !strings.Contains(stdout, "Expired") {
 		t.Errorf("expected invoice status in output, got %q", stdout)
 	}
 }
@@ -544,7 +544,7 @@ func TestInteg_Pay_And_PaymentList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pay failed: %v", err)
 	}
-	if !strings.Contains(stdout, "status:") {
+	if !strings.Contains(stdout, "Status:") {
 		t.Errorf("expected status in output, got %q", stdout)
 	}
 
@@ -553,8 +553,8 @@ func TestInteg_Pay_And_PaymentList(t *testing.T) {
 	if err != nil {
 		t.Fatalf("payment list failed: %v", err)
 	}
-	if !strings.Contains(stdout, "sats") {
-		t.Errorf("expected sats in output, got %q", stdout)
+	if !strings.Contains(stdout, "₿") {
+		t.Errorf("expected ₿ amounts in output, got %q", stdout)
 	}
 }
 
@@ -608,8 +608,8 @@ func TestInteg_Transactions(t *testing.T) {
 	if strings.Contains(stdout, "No transactions") {
 		t.Skip("funded wallet has no transactions")
 	}
-	if !strings.Contains(stdout, "sats") {
-		t.Errorf("expected sats in output, got %q", stdout)
+	if !strings.Contains(stdout, "₿") {
+		t.Errorf("expected ₿ amounts in output, got %q", stdout)
 	}
 }
 
@@ -643,7 +643,7 @@ func TestInteg_Webhook_CRUD(t *testing.T) {
 	if !strings.Contains(stdout, "Webhook created") {
 		t.Errorf("expected 'Webhook created', got %q", stdout)
 	}
-	if !strings.Contains(stdout, "secret:") {
+	if !strings.Contains(stdout, "Secret:") {
 		t.Errorf("expected secret in output, got %q", stdout)
 	}
 
@@ -805,7 +805,7 @@ func TestInteg_WalletFlag_ByID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("balance --wallet failed: %v", err)
 	}
-	if !strings.Contains(stdout, "balance:") {
+	if !strings.Contains(stdout, "Balance:") {
 		t.Errorf("expected balance output, got %q", stdout)
 	}
 }

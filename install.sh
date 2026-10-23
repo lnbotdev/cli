@@ -112,7 +112,7 @@ main() {
   info ""
   info "  Get started:"
   info "    lnbot init"
-  info "    lnbot wallet create --name agent01"
+  info "    lnbot invoice create --amount 1000"
   info ""
   info "  Docs: https://ln.bot/docs"
 }

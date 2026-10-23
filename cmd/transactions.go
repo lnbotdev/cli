@@ -17,7 +17,7 @@ var transactionsCmd = &cobra.Command{
 	Use:     "transactions",
 	Short:   "List all transaction history",
 	Aliases: []string{"txns", "tx"},
-	Long: `Show the combined transaction ledger for the active wallet — both
+	Long: `Show the combined transaction ledger for the active wallet: both
 incoming (credits) and outgoing (debits), newest first.`,
 	Example: `  lnbot transactions
   lnbot tx --limit 5
@@ -56,24 +56,23 @@ incoming (credits) and outgoing (debits), newest first.`,
 			if tx.Type == "debit" {
 				sign = "-"
 			}
-			fmt.Printf("  %-6s  %s%10s sats  bal: %10s  %s\n",
-				tx.Type,
-				sign,
-				format.SatsPlain(tx.Amount),
-				format.SatsPlain(tx.BalanceAfter),
+			fmt.Printf("  %-6s  %12s  Balance %12s  %s\n",
+				format.Cap(tx.Type),
+				sign+format.BTC(tx.Amount),
+				format.BTC(tx.BalanceAfter),
 				format.TimeAgo(tx.CreatedAt),
 			)
 		}
 
 		if len(txs) == limit {
 			last := txs[len(txs)-1].Number
-			fmt.Printf("\n  %d shown — next page: --after %d\n", limit, last)
+			fmt.Printf("\n  %d shown. Next page: --after %d\n", limit, last)
 		}
 		return nil
 	},
 }
 
 func init() {
-	transactionsCmd.Flags().Int("limit", 20, "max number of results")
-	transactionsCmd.Flags().Int("after", 0, "show results after this transaction number (for pagination)")
+	transactionsCmd.Flags().Int("limit", 20, "Max number of results")
+	transactionsCmd.Flags().Int("after", 0, "Show results after this transaction number (for pagination)")
 }

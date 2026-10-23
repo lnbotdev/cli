@@ -18,7 +18,7 @@ command prints JSON you paste into your MCP client settings.`,
 }
 
 func init() {
-	mcpConfigCmd.Flags().Bool("remote", false, "generate remote config (required for now)")
+	mcpConfigCmd.Flags().Bool("remote", false, "Generate remote config (required for now)")
 
 	mcpCmd.AddCommand(mcpConfigCmd)
 	mcpCmd.AddCommand(mcpServeCmd)

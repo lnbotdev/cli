@@ -23,7 +23,7 @@ You can also buy vanity addresses like alice@ln.bot.`,
 }
 
 func init() {
-	addressTransferCmd.Flags().String("target-key", "", "target wallet API key")
+	addressTransferCmd.Flags().String("target-key", "", "API key of the wallet that receives the address")
 
 	addressCmd.AddCommand(addressListCmd)
 	addressCmd.AddCommand(addressBuyCmd)
@@ -63,7 +63,7 @@ var addressListCmd = &cobra.Command{
 			if a.Generated {
 				tag = "generated"
 			} else if a.Cost > 0 {
-				tag = fmt.Sprintf("vanity, %s", format.Sats(a.Cost))
+				tag = fmt.Sprintf("vanity, %s", format.BTC(a.Cost))
 			}
 			fmt.Printf("  %s  (%s)\n", a.Address, tag)
 		}
@@ -109,7 +109,7 @@ is included automatically (alice+anything@ln.bot).`,
 
 		printSuccess(fmt.Sprintf("Address claimed: %s", addr.Address))
 		if addr.Cost > 0 {
-			fmt.Printf("  cost: %s\n", format.Sats(addr.Cost))
+			fmt.Printf("  Cost: %s\n", format.BTC(addr.Cost))
 		}
 		return nil
 	},

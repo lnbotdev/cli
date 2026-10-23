@@ -25,12 +25,12 @@ var (
 	cfg *config.Config
 )
 
-const version = "1.0.0"
+const version = "1.1.0"
 
 var rootCmd = &cobra.Command{
 	Use:   "lnbot",
 	Short: "Lightning wallets for agents",
-	Long:  `ln.bot — Bitcoin Lightning wallets for AI agents`,
+	Long:  `ln.bot: a Bitcoin Lightning wallet for AI agents`,
 	Example: `  $ lnbot init
   $ lnbot wallet create
   $ lnbot invoice create --amount 1000 --memo "coffee"
@@ -110,12 +110,12 @@ const groupHelpTmpl = `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces}}
 `
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&walletFlag, "wallet", "w", "", "wallet ID or name (default: active wallet)")
-	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "output as JSON")
-	rootCmd.PersistentFlags().BoolVarP(&yesFlag, "yes", "y", false, "skip confirmation prompts")
+	rootCmd.PersistentFlags().StringVarP(&walletFlag, "wallet", "w", "", "Wallet ID or name (default: the active wallet)")
+	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Print JSON instead of text")
+	rootCmd.PersistentFlags().BoolVarP(&yesFlag, "yes", "y", false, "Skip confirmation prompts")
 
 	rootCmd.AddGroup(
-		&cobra.Group{ID: "start", Title: "Getting Started:"},
+		&cobra.Group{ID: "start", Title: "Getting started:"},
 		&cobra.Group{ID: "money", Title: "Money:"},
 		&cobra.Group{ID: "identity", Title: "Identity:"},
 		&cobra.Group{ID: "security", Title: "Security:"},
@@ -190,6 +190,17 @@ func init() {
 	for _, cmd := range leafCmds {
 		cmd.SetHelpTemplate(leafHelpTmpl)
 	}
+
+	setHelpFlags(rootCmd)
+}
+
+// setHelpFlags gives every command a sentence-case --help description in
+// place of cobra's "help for <name>".
+func setHelpFlags(c *cobra.Command) {
+	c.Flags().BoolP("help", "h", false, "Show help for "+c.Name())
+	for _, sub := range c.Commands() {
+		setHelpFlags(sub)
+	}
 }
 
 func Execute() error {
@@ -219,8 +230,8 @@ var initCmd = &cobra.Command{
 credentials locally.
 
 The config is stored at ~/.config/lnbot/config.json (override with
-LNBOT_CONFIG env var). Run this once — subsequent wallets are created
-with 'lnbot wallet create'.`,
+LNBOT_CONFIG env var). Run this once; create more wallets with
+'lnbot wallet create'.`,
 	Example: `  lnbot init`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if cfg != nil {
@@ -268,11 +279,11 @@ with 'lnbot wallet create'.`,
 
 		fmt.Println()
 		printSuccess("Account and wallet created")
-		fmt.Printf("  wallet:   %s (%s)\n", wallet.Name, wallet.WalletID)
-		fmt.Printf("  address:  %s\n", wallet.Address)
-		fmt.Printf("  api key:  %s\n", truncateKey(account.PrimaryKey))
+		fmt.Printf("  Wallet:   %s (%s)\n", wallet.Name, wallet.WalletID)
+		fmt.Printf("  Address:  %s\n", wallet.Address)
+		fmt.Printf("  API key:  %s\n", truncateKey(account.PrimaryKey))
 		fmt.Println()
-		printWarning("Recovery passphrase (save this — shown only once):")
+		printWarning("Recovery passphrase, shown only once. Keep it safe:")
 		fmt.Printf("  %s\n", account.RecoveryPassphrase)
 		fmt.Println()
 		fmt.Printf("  Config saved to %s\n", config.Path())
@@ -286,7 +297,7 @@ with 'lnbot wallet create'.`,
 
 func requireConfig() error {
 	if cfg == nil {
-		return fmt.Errorf("no config found — run 'lnbot init' first")
+		return fmt.Errorf("no config found: run 'lnbot init' first")
 	}
 	return nil
 }
@@ -300,7 +311,7 @@ func resolveWalletID() (string, error) {
 	}
 	if walletFlag == "" {
 		if cfg.ActiveWalletID == "" {
-			return "", fmt.Errorf("no active wallet — run 'lnbot wallet use <id>'")
+			return "", fmt.Errorf("no active wallet: run 'lnbot wallet use <id>'")
 		}
 		return cfg.ActiveWalletID, nil
 	}

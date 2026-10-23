@@ -23,7 +23,7 @@ Webhooks receive real-time HTTP POST notifications for wallet events
 }
 
 func init() {
-	webhookCreateCmd.Flags().String("url", "", "webhook endpoint URL (required)")
+	webhookCreateCmd.Flags().String("url", "", "Webhook endpoint URL (required)")
 	webhookCreateCmd.MarkFlagRequired("url")
 
 	webhookCmd.AddCommand(webhookCreateCmd)
@@ -58,11 +58,11 @@ that you use to verify payloads. The secret is shown once.`,
 		}
 
 		printSuccess("Webhook created")
-		fmt.Printf("  id:     %s\n", hook.ID)
-		fmt.Printf("  url:    %s\n", hook.URL)
-		fmt.Printf("  secret: %s\n", hook.Secret)
+		fmt.Printf("  ID:     %s\n", hook.ID)
+		fmt.Printf("  URL:    %s\n", hook.URL)
+		fmt.Printf("  Secret: %s\n", hook.Secret)
 		fmt.Println()
-		fmt.Println("  Save the secret — it won't be shown again.")
+		fmt.Println("  Save the secret now: it won't be shown again.")
 		return nil
 	},
 }
@@ -95,9 +95,9 @@ var webhookListCmd = &cobra.Command{
 		}
 
 		for _, h := range hooks {
-			status := "active"
+			status := "Active"
 			if !h.Active {
-				status = "inactive"
+				status = "Inactive"
 			}
 			fmt.Printf("  %s  %-8s  %s  %s\n", h.ID, status, h.URL, format.TimeAgo(h.CreatedAt))
 		}

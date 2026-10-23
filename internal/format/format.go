@@ -36,12 +36,21 @@ func commafy(n int64) string {
 	return b.String()
 }
 
-func Sats(amount int64) string {
-	return commafy(amount) + " sats"
+// BTC writes an amount the way BIP 177 does: the ₿ sign and whole base
+// units (what were called sats), so 1000 is "₿1,000" and -500 is "-₿500".
+func BTC(amount int64) string {
+	if amount < 0 {
+		return "-₿" + commafy(-amount)
+	}
+	return "₿" + commafy(amount)
 }
 
-func SatsPlain(amount int64) string {
-	return commafy(amount)
+// Cap capitalizes an API value (a status, a type) for display: "settled" → "Settled".
+func Cap(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
 }
 
 func TimeAgo(t *time.Time) string {

@@ -63,6 +63,6 @@ Write-Host "lnbot $Version installed to $InstallDir\$Binary" -ForegroundColor Gr
 Write-Host ""
 Write-Host "  Get started:" -ForegroundColor Green
 Write-Host "    lnbot init" -ForegroundColor Green
-Write-Host "    lnbot wallet create --name agent01" -ForegroundColor Green
+Write-Host "    lnbot invoice create --amount 1000" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Restart your terminal for PATH changes to take effect." -ForegroundColor Yellow

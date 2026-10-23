@@ -16,7 +16,7 @@ var walletCmd = &cobra.Command{
 	Short: "Create, list, switch, and rename wallets",
 	Long: `Manage wallets under your account.
 
-All wallets share the same user key. One wallet is active at a time —
+All wallets share the same user key. One wallet is active at a time:
 most commands operate on it by default. Use --wallet to target a
 different one, or 'wallet use' to switch.`,
 }
@@ -63,9 +63,9 @@ accessible via your existing user key.`,
 		}
 
 		printSuccess("Wallet created")
-		fmt.Printf("  id:       %s\n", wallet.WalletID)
-		fmt.Printf("  name:     %s\n", wallet.Name)
-		fmt.Printf("  address:  %s\n", wallet.Address)
+		fmt.Printf("  ID:       %s\n", wallet.WalletID)
+		fmt.Printf("  Name:     %s\n", wallet.Name)
+		fmt.Printf("  Address:  %s\n", wallet.Address)
 		return nil
 	},
 }

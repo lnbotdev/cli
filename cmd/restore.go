@@ -19,14 +19,14 @@ var restoreCmd = &cobra.Command{
 	Long: `Restore access to your account using a backup method.
 
 Two methods are available:
-  recovery  — restore using the 12-word passphrase
-  passkey   — restore using a registered WebAuthn passkey (browser only)
+  recovery  Restore using the 12-word passphrase
+  passkey   Restore using a registered WebAuthn passkey (browser only)
 
 Restoring rotates all API keys. Old keys stop working immediately.`,
 }
 
 func init() {
-	restoreRecoveryCmd.Flags().String("passphrase", "", "12-word recovery passphrase")
+	restoreRecoveryCmd.Flags().String("passphrase", "", "The 12-word recovery passphrase")
 	restoreRecoveryCmd.MarkFlagRequired("passphrase")
 
 	restoreCmd.AddCommand(restorePasskeyCmd)
@@ -43,7 +43,7 @@ the CLI. Use the web terminal at https://ln.bot instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "Passkey authentication requires a browser with WebAuthn support.")
 		fmt.Fprintln(os.Stderr, "Use the web terminal at https://ln.bot instead.")
-		return fmt.Errorf("not supported in the CLI — use the web terminal")
+		return fmt.Errorf("not supported in the CLI: use the web terminal")
 	},
 }
 
@@ -52,7 +52,7 @@ var restoreRecoveryCmd = &cobra.Command{
 	Short: "Restore an account via recovery passphrase",
 	Long: `Restore account access using the 12-word recovery passphrase.
 
-This rotates all API keys — old keys stop working immediately.`,
+This rotates all API keys: old keys stop working immediately.`,
 	Example: `  lnbot restore recovery --passphrase "word1 word2 word3 ... word12"`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		phrase, _ := cmd.Flags().GetString("passphrase")
@@ -65,6 +65,16 @@ This rotates all API keys — old keys stop working immediately.`,
 			return apiError("restoring account", err)
 		}
 
+		newClient := lnbot.New(restored.PrimaryKey)
+
+		// The response may not name a wallet: fall back to the account's first.
+		if restored.WalletID == "" {
+			if wallets, err := newClient.Wallets.List(context.Background()); err == nil && len(wallets) > 0 {
+				restored.WalletID = wallets[0].WalletID
+				restored.Name = wallets[0].Name
+			}
+		}
+
 		cfg, err = config.Init(restored.PrimaryKey, restored.SecondaryKey, restored.WalletID)
 		if err != nil {
 			return err
@@ -75,13 +85,12 @@ This rotates all API keys — old keys stop working immediately.`,
 		}
 
 		printSuccess("Account restored")
-		fmt.Printf("  wallet: %s\n", restored.WalletID)
-		fmt.Printf("  name:   %s\n", restored.Name)
+		fmt.Printf("  Wallet:   %s\n", restored.WalletID)
+		fmt.Printf("  Name:     %s\n", restored.Name)
 
-		newClient := lnbot.New(restored.PrimaryKey)
 		addrs, err := newClient.Wallet(restored.WalletID).Addresses.List(context.Background())
 		if err == nil && len(addrs) > 0 {
-			fmt.Printf("  address: %s\n", addrs[0].Address)
+			fmt.Printf("  Address:  %s\n", addrs[0].Address)
 		}
 
 		return nil
