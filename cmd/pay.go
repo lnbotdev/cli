@@ -262,18 +262,12 @@ func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnb
 		fmt.Fprintln(os.Stderr, "  Nothing was deducted.")
 	default:
 		fmt.Print("  Waiting for settlement... (Ctrl+C to stop)")
-		result, err := watchPayment(ctx, w, payment.Number)
+		result, err := waitPayment(ctx, w, payment.Number)
 		fmt.Println()
 		if err != nil {
 			return err
 		}
-		if result == nil {
-			// The stream ended first: read the payment as it is now.
-			if latest, err := w.Payments.Get(ctx, payment.Number); err == nil {
-				result = latest
-			}
-		}
-		if result != nil && (result.Status == "settled" || result.Status == "failed") {
+		if result.Status == "settled" || result.Status == "failed" {
 			return printPaymentResult(ctx, w, result, start)
 		}
 		fmt.Printf("  Still %s. ln.bot keeps retrying it; check with 'lnbot payment list'.\n", payment.Status)
@@ -282,15 +276,9 @@ func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnb
 }
 
 func waitForPaymentJSON(ctx context.Context, w *lnbot.WalletHandle, payment *lnbot.Payment) (*lnbot.Payment, error) {
-	result, err := watchPayment(ctx, w, payment.Number)
+	result, err := waitPayment(ctx, w, payment.Number)
 	if err != nil {
 		return payment, err
-	}
-	if result == nil {
-		if latest, err := w.Payments.Get(ctx, payment.Number); err == nil {
-			return latest, nil
-		}
-		return payment, nil
 	}
 	return result, nil
 }

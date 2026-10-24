@@ -18,8 +18,20 @@ const pollInterval = 3 * time.Second
 // watchTimeout is the longest wait the API allows on one event stream.
 var watchTimeout = lnbot.Ptr(300)
 
+// waitPayment waits on the payment's event stream until it settles, fails or
+// the stream ends, then reads the payment as it is now. The stream's payload
+// names fields in snake_case (actual_fee, failure_reason), which the SDK's
+// Payment doesn't decode, so only the read carries the fees and the reason.
+func waitPayment(ctx context.Context, w *lnbot.WalletHandle, number int) (*lnbot.Payment, error) {
+	if _, err := watchPayment(ctx, w, number); err != nil {
+		return nil, err
+	}
+	return w.Payments.Get(ctx, number)
+}
+
 // watchPayment waits on the payment's event stream and returns the payment
 // from its settled or failed event, or nil if the stream ended without one.
+// Only its status is reliable: see waitPayment.
 func watchPayment(ctx context.Context, w *lnbot.WalletHandle, number int) (*lnbot.Payment, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -77,30 +89,26 @@ func watchInvoice(ctx context.Context, w *lnbot.WalletHandle, number int) (*lnbo
 // waitForInvoice follows an invoice until it settles, or until it has been
 // expired for lateSettleWindow. onExpired runs once, when it first shows as
 // expired. If the event stream fails, it reads the invoice directly instead.
+// It always returns the invoice as read, not the event's payload, which uses
+// snake_case field names the SDK doesn't decode.
 func waitForInvoice(ctx context.Context, w *lnbot.WalletHandle, number int, onExpired func()) (*lnbot.Invoice, error) {
 	var expiredAt time.Time
 	poll := false
 
 	for {
-		var inv *lnbot.Invoice
 		if poll || !expiredAt.IsZero() {
 			if err := sleepCtx(ctx, pollInterval); err != nil {
 				return nil, err
 			}
 		} else {
-			ev, err := watchInvoice(ctx, w, number)
-			if err != nil {
+			if _, err := watchInvoice(ctx, w, number); err != nil {
 				poll = true
 			}
-			inv = ev
 		}
 
-		if inv == nil {
-			latest, err := w.Invoices.Get(ctx, number)
-			if err != nil {
-				return nil, err
-			}
-			inv = latest
+		inv, err := w.Invoices.Get(ctx, number)
+		if err != nil {
+			return nil, err
 		}
 
 		switch inv.Status {

@@ -25,7 +25,7 @@ var (
 	cfg *config.Config
 )
 
-const version = "1.1.1"
+const version = "1.1.2"
 
 var rootCmd = &cobra.Command{
 	Use:   "lnbot",
