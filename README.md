@@ -100,6 +100,7 @@ Send ₿250,000 to alice@example.com? (y/N) y
 ✓ Payment settled in 1840ms
   Amount:     ₿250,000
   Fees:       ₿1,323 (network ₿698, service ₿625)
+  Total:      ₿251,323
   Available:  ₿48,675
 ```
 

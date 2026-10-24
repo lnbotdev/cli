@@ -217,13 +217,17 @@ func printQuote(q *lnbot.ResolveTargetResponse) {
 	}
 }
 
-// feeSummary is what a settled payment cost on top of its amount.
-func feeSummary(p *lnbot.Payment) string {
-	var network int64
+// paymentFees is what a settled payment cost on top of its amount: the
+// network fee charged plus the service fee.
+func paymentFees(p *lnbot.Payment) (network, total int64) {
 	if p.ActualFee != nil {
 		network = *p.ActualFee
 	}
-	total := network + p.ServiceFee
+	return network, network + p.ServiceFee
+}
+
+func feeSummary(p *lnbot.Payment) string {
+	network, total := paymentFees(p)
 	if total == 0 {
 		return format.BTC(0)
 	}
@@ -241,6 +245,10 @@ func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnb
 		}
 		fmt.Printf("  Amount:     %s\n", format.BTC(payment.Amount))
 		fmt.Printf("  Fees:       %s\n", feeSummary(payment))
+		// What left the balance, as the transaction ledger shows it.
+		if _, fees := paymentFees(payment); fees > 0 {
+			fmt.Printf("  Total:      %s\n", format.BTC(payment.Amount+fees))
+		}
 		wal, err := w.Get(ctx)
 		if err == nil {
 			fmt.Printf("  Available:  %s\n", format.BTC(wal.Available))
