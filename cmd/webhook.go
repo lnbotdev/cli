@@ -109,8 +109,8 @@ var webhookDeleteCmd = &cobra.Command{
 	Use:   "delete <id>",
 	Short: "Delete a webhook endpoint",
 	Long:  `Remove a webhook endpoint. It will stop receiving events immediately.`,
-	Example: `  lnbot webhook delete whk_9xMn2
-  lnbot webhook delete whk_9xMn2 --yes`,
+	Example: `  lnbot webhook delete e82a6e9a410c916a
+  lnbot webhook delete e82a6e9a410c916a --yes`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id := args[0]
