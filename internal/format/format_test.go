@@ -123,3 +123,33 @@ func TestTruncate(t *testing.T) {
 }
 
 func ptr(t time.Time) *time.Time { return &t }
+
+func TestSeconds(t *testing.T) {
+	for in, want := range map[float64]string{
+		2.4: "2.4 s", 3: "3 s", 9.96: "10 s", 41: "41 s", 412: "7 min", 1260: "21 min",
+		3600: "1 h", 5400: "1.5 h", 10800: "3 h", 86400: "24 h",
+	} {
+		if got := Seconds(in); got != want {
+			t.Errorf("Seconds(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestPercent(t *testing.T) {
+	for in, want := range map[float64]string{99.722: "99.72%", 100: "100%", 0: "0%", 99.5: "99.5%"} {
+		if got := Percent(in); got != want {
+			t.Errorf("Percent(%v) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCountAndStage(t *testing.T) {
+	if got := Count(1312); got != "1,312" {
+		t.Errorf("Count = %q", got)
+	}
+	for in, want := range map[string]string{"in_flight": "In flight", "on_hold": "On hold", "queued": "Queued", "": ""} {
+		if got := Stage(in); got != want {
+			t.Errorf("Stage(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

@@ -328,6 +328,27 @@ func TestInteg_Status_JSON(t *testing.T) {
 	if result["walletId"] != fundedWalletID {
 		t.Errorf("walletId = %v, want %q", result["walletId"], fundedWalletID)
 	}
+	if _, ok := result["service"].(map[string]any); !ok {
+		t.Errorf("expected a service object, got %v", result["service"])
+	}
+	if _, ok := result["summary24h"].(map[string]any); !ok {
+		t.Errorf("expected a summary24h object, got %v", result["summary24h"])
+	}
+}
+
+func TestInteg_Status_NoConfig(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LNBOT_CONFIG", filepath.Join(dir, "nope.json"))
+	t.Setenv("LNBOT_NO_UPDATE_CHECK", "1")
+
+	// The service part needs no key, so status works before lnbot init.
+	stdout, _, err := executeCmd("status")
+	if err != nil {
+		t.Fatalf("status without config failed: %v", err)
+	}
+	if !strings.Contains(stdout, "ln.bot:") || strings.Contains(stdout, "Name:") {
+		t.Errorf("expected only the service part, got %q", stdout)
+	}
 }
 
 // ── Whoami ───────────────────────────────────────────────
@@ -819,7 +840,6 @@ func TestInteg_NoConfig_Commands(t *testing.T) {
 
 	commands := [][]string{
 		{"balance"},
-		{"status"},
 		{"whoami"},
 		{"invoice", "list"},
 		{"payment", "list"},

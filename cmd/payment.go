@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -63,14 +64,21 @@ var paymentListCmd = &cobra.Command{
 			return nil
 		}
 
-		for _, p := range payments {
+		labels := make([]string, len(payments))
+		width := 10
+		for i := range payments {
+			labels[i] = paymentState(&payments[i])
+			width = max(width, len([]rune(labels[i])))
+		}
+
+		for i, p := range payments {
 			addr := p.Address
 			if addr == "" {
 				addr = "--"
 			}
-			fmt.Printf("  #%4d  %-10s  %12s  %8s  %s\n",
+			fmt.Printf("  #%4d  %-*s  %12s  %8s  %s\n",
 				p.Number,
-				format.Cap(p.Status),
+				width, labels[i],
 				format.BTC(p.Amount),
 				format.TimeAgo(p.CreatedAt),
 				format.Truncate(addr, 40),
@@ -83,4 +91,14 @@ var paymentListCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// paymentState is a payment's status, with its stage while it is in progress:
+// "Pending · retrying", "Processing · in flight".
+func paymentState(p *lnbot.Payment) string {
+	state := format.Cap(p.Status)
+	if p.Stage != "" && !final(p) && p.Stage != p.Status {
+		state += " · " + strings.ReplaceAll(p.Stage, "_", " ")
+	}
+	return state
 }

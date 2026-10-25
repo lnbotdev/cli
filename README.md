@@ -62,7 +62,7 @@ Money:
 Identity:
   address           Manage Lightning addresses (buy, list, transfer, delete)
   whoami            Show current wallet info
-  status            Wallet status and API health
+  status            Service status, wallet status and API health
 
 Security:
   key               Show or rotate API keys
@@ -105,6 +105,45 @@ Send ₿250,000 to alice@example.com? (y/N) y
 ```
 
 The network fee is capped at 1% of the amount (at least ₿20). Pass `--max-fee <sats>` to allow more, and `--all` instead of `--amount` to send everything the wallet can to a Lightning address or LNURL. `--yes` skips the quote along with the question.
+
+## Payment progress
+
+A payment that doesn't settle at once shows where it is while `pay` waits, a line each time its stage changes, in the API's words:
+
+```
+$ lnbot pay alice@example.com --amount 1000 --yes
+  Queued: Waiting to be sent.
+  Waiting for settlement... (Ctrl+C to stop)
+  Retrying: Not sent yet; retrying for a few minutes. If it still can't be sent, it fails and the funds are released. (until 14:43)
+  In flight: Sent; the Lightning network is completing it, usually within seconds.
+✓ Payment settled in 41250ms
+```
+
+`lnbot payment list` shows the stage of payments still in progress, such as `Pending · retrying` or `Processing · in flight`. With `--json` or `--no-wait`, `pay` prints the payment as the API returns it, `stage`, `statusDetail` and `retryUntil` included.
+
+## Service status
+
+`lnbot status` says whether ln.bot is working before it shows your wallet, and needs no key or wallet for that part:
+
+```
+$ lnbot status
+  ln.bot:    ⚠ Degraded (updated just now)
+  Notice:    Warning, since 14:20: Sends are slower than usual.
+
+  Sending    Degraded     3 in progress (1 retrying, 2 in flight), oldest 7 min
+                          Last hour: 57 sent, 4 failed (0 on ln.bot's side), median 2.4 s, p95 9.1 s
+  Receiving  Operational  Last hour: 120 credited, none waiting
+  Node       Operational  Answered in 310 ms
+  Webhooks   Operational  2 deliveries waiting
+
+  Last 24 h: 99.72% uptime, 1,312 sent, 21 failed (2 on ln.bot's side), median 2.3 s, p95 8.6 s
+
+  Name:      x4k7m2
+  ID:        wal_c7i0hnuoxxupuwej
+  ...
+```
+
+It exits 0 whatever state the service is in; scripts read `--json`, which adds `service` (the API's `/v1/status`) and `summary24h` to the wallet's keys. Only failing to reach the API is an error. The status routes allow 10 requests a minute per IP. The same numbers, with history, are at [ln.bot/status](https://ln.bot/status).
 
 ## Multi-wallet
 

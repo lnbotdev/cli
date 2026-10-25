@@ -261,18 +261,41 @@ func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnb
 		fmt.Fprintf(os.Stderr, "✗ Payment failed: %s\n", reason)
 		fmt.Fprintln(os.Stderr, "  Nothing was deducted.")
 	default:
-		fmt.Print("  Waiting for settlement... (Ctrl+C to stop)")
-		result, err := waitPayment(ctx, w, payment.Number)
-		fmt.Println()
+		// An API that reports stages gets a line per stage; one that doesn't,
+		// the single waiting line it always had.
+		staged := payment.Stage != ""
+		if staged {
+			printStage(payment)
+			fmt.Println("  Waiting for settlement... (Ctrl+C to stop)")
+		} else {
+			fmt.Print("  Waiting for settlement... (Ctrl+C to stop)")
+		}
+		result, err := followPayment(ctx, w, payment, printStage)
+		if !staged {
+			fmt.Println()
+		}
 		if err != nil {
 			return err
 		}
-		if result.Status == "settled" || result.Status == "failed" {
+		if final(result) {
 			return printPaymentResult(ctx, w, result, start)
 		}
-		fmt.Printf("  Still %s. ln.bot keeps retrying it; check with 'lnbot payment list'.\n", payment.Status)
+		fmt.Printf("  Still %s. ln.bot keeps retrying it; check with 'lnbot payment list'.\n", result.Status)
 	}
 	return nil
+}
+
+// printStage shows where a payment in progress is, in the API's words, with
+// the time it is retried until in local time.
+func printStage(p *lnbot.Payment) {
+	line := "  " + format.Stage(p.Stage)
+	if p.StatusDetail != nil && *p.StatusDetail != "" {
+		line += ": " + *p.StatusDetail
+	}
+	if p.RetryUntil != nil {
+		line += " (until " + clock(*p.RetryUntil) + ")"
+	}
+	fmt.Println(line)
 }
 
 func waitForPaymentJSON(ctx context.Context, w *lnbot.WalletHandle, payment *lnbot.Payment) (*lnbot.Payment, error) {

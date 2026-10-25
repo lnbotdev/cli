@@ -15,28 +15,63 @@ const lateSettleWindow = time.Minute
 // stream isn't available or it has expired.
 const pollInterval = 3 * time.Second
 
-// watchTimeout is the longest wait the API allows on one event stream.
-var watchTimeout = lnbot.Ptr(300)
+// watchTimeout is the longest wait the API allows on one event stream, and
+// so the longest pay waits for a payment.
+const watchTimeout = 300
+
+// stageWatchTimeout is how long one wait lasts while following a payment's
+// stage: the stream only reports a settled or failed payment, or its current
+// state when the wait runs out, so short waits are how stage changes show.
+var stageWatchTimeout = 10
 
 // waitPayment waits on the payment's event stream until it settles, fails or
-// the stream ends, then reads the payment as it is now. The stream's payload
-// names fields in snake_case (actual_fee, failure_reason), which the SDK's
-// Payment doesn't decode, so only the read carries the fees and the reason.
+// the stream ends, then reads the payment as it is now: the read carries the
+// fees and the failure reason whatever the stream's payload holds.
 func waitPayment(ctx context.Context, w *lnbot.WalletHandle, number int) (*lnbot.Payment, error) {
-	if _, err := watchPayment(ctx, w, number); err != nil {
+	if _, err := watchPayment(ctx, w, number, watchTimeout); err != nil {
 		return nil, err
 	}
 	return w.Payments.Get(ctx, number)
 }
 
-// watchPayment waits on the payment's event stream and returns the payment
-// from its settled or failed event, or nil if the stream ended without one.
-// Only its status is reliable: see waitPayment.
-func watchPayment(ctx context.Context, w *lnbot.WalletHandle, number int) (*lnbot.Payment, error) {
+// followPayment waits, for watchTimeout at most, until the payment settles or
+// fails, and calls onStage each time its stage changes on the way. An API that
+// reports no stage gets one long wait, as waitPayment does. It returns the
+// payment as read last.
+func followPayment(ctx context.Context, w *lnbot.WalletHandle, p *lnbot.Payment, onStage func(*lnbot.Payment)) (*lnbot.Payment, error) {
+	if p.Stage == "" {
+		return waitPayment(ctx, w, p.Number)
+	}
+	deadline := time.Now().Add(watchTimeout * time.Second)
+	stage := p.Stage
+	for {
+		wait := min(stageWatchTimeout, int(time.Until(deadline).Seconds()))
+		ev, err := watchPayment(ctx, w, p.Number, max(wait, 1))
+		if err != nil {
+			return nil, err
+		}
+		if ev == nil || final(ev) || time.Now().After(deadline) {
+			return w.Payments.Get(ctx, p.Number)
+		}
+		if ev.Stage != "" && ev.Stage != stage {
+			stage = ev.Stage
+			onStage(ev)
+		}
+	}
+}
+
+func final(p *lnbot.Payment) bool {
+	return p.Status == "settled" || p.Status == "failed"
+}
+
+// watchPayment waits up to timeout seconds on the payment's event stream and
+// returns the payment from its event (settled, failed, or timeout with the
+// current state), or nil if the stream ended without one.
+func watchPayment(ctx context.Context, w *lnbot.WalletHandle, number int, timeout int) (*lnbot.Payment, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	events, errs := w.Payments.Watch(ctx, number, watchTimeout)
+	events, errs := w.Payments.Watch(ctx, number, lnbot.Ptr(timeout))
 	for events != nil || errs != nil {
 		select {
 		case ev, ok := <-events:
@@ -64,7 +99,7 @@ func watchInvoice(ctx context.Context, w *lnbot.WalletHandle, number int) (*lnbo
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	events, errs := w.Invoices.Watch(ctx, number, watchTimeout)
+	events, errs := w.Invoices.Watch(ctx, number, lnbot.Ptr(watchTimeout))
 	for events != nil || errs != nil {
 		select {
 		case ev, ok := <-events:
