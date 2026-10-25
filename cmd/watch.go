@@ -16,8 +16,8 @@ const lateSettleWindow = time.Minute
 const pollInterval = 3 * time.Second
 
 // watchTimeout is the longest wait the API allows on one event stream, and
-// so the longest pay waits for a payment.
-const watchTimeout = 300
+// so the longest pay waits for a payment, in seconds.
+var watchTimeout = 300
 
 // stageWatchTimeout is how long one wait lasts while following a payment's
 // stage: the stream only reports a settled or failed payment, or its current
@@ -42,7 +42,7 @@ func followPayment(ctx context.Context, w *lnbot.WalletHandle, p *lnbot.Payment,
 	if p.Stage == "" {
 		return waitPayment(ctx, w, p.Number)
 	}
-	deadline := time.Now().Add(watchTimeout * time.Second)
+	deadline := time.Now().Add(time.Duration(watchTimeout) * time.Second)
 	stage := p.Stage
 	for {
 		wait := min(stageWatchTimeout, int(time.Until(deadline).Seconds()))

@@ -280,7 +280,12 @@ func printPaymentResult(ctx context.Context, w *lnbot.WalletHandle, payment *lnb
 		if final(result) {
 			return printPaymentResult(ctx, w, result, start)
 		}
-		fmt.Printf("  Still %s. ln.bot keeps retrying it; check with 'lnbot payment list'.\n", result.Status)
+		// The wait ran out first. A pending payment is retried for minutes, a
+		// processing one waits for the Lightning network: say only where it is.
+		fmt.Println("  Still in progress. Check it with 'lnbot payment list'.")
+		if result.StatusDetail != nil && *result.StatusDetail != "" {
+			fmt.Printf("  %s\n", *result.StatusDetail)
+		}
 	}
 	return nil
 }

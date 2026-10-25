@@ -119,6 +119,8 @@ $ lnbot pay alice@example.com --amount 1000 --yes
 ✓ Payment settled in 41250ms
 ```
 
+A payment that can't be sent fails within minutes, with its funds released, and one already on the Lightning network usually settles within seconds. If `pay`'s 5-minute wait runs out first, it prints `Still in progress. Check it with 'lnbot payment list'.` and the payment's status detail.
+
 `lnbot payment list` shows the stage of payments still in progress, such as `Pending · retrying` or `Processing · in flight`. With `--json` or `--no-wait`, `pay` prints the payment as the API returns it, `stage`, `statusDetail` and `retryUntil` included.
 
 ## Service status

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // The contract's examples: a degraded service with a notice, and its 24 hours.
@@ -284,5 +285,41 @@ func TestPaymentList_ShowsStages(t *testing.T) {
 	}
 	if strings.Contains(stdout, "Settled ·") || strings.Contains(stdout, "Processing · \n") {
 		t.Errorf("stage shown where it shouldn't be:\n%s", stdout)
+	}
+}
+
+func TestPay_WaitRunsOut(t *testing.T) {
+	setupConfig(t, testConfig())
+	resetPayFlags(t)
+	oldWait, oldStage := watchTimeout, stageWatchTimeout
+	watchTimeout, stageWatchTimeout = 1, 1
+	t.Cleanup(func() { watchTimeout, stageWatchTimeout = oldWait, oldStage })
+
+	inFlight := `{"number":4,"status":"processing","amount":1000,"maxFee":20,"serviceFee":3,"address":"x@y.com","stage":"in_flight","statusDetail":"Sent; the Lightning network is completing it, usually within seconds."}`
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/wallets/wal_main123/payments", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, inFlight)
+	})
+	mux.HandleFunc("/v1/wallets/wal_main123/payments/4/events", func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(1100 * time.Millisecond)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "event: timeout\ndata: "+`{"number":4,"status":"processing","amount":1000,"max_fee":20,"service_fee":3,"address":"x@y.com","stage":"in_flight","status_detail":"Sent; the Lightning network is completing it, usually within seconds."}`+"\n\n")
+	})
+	mux.HandleFunc("/v1/wallets/wal_main123/payments/4", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, inFlight)
+	})
+	serve(t, mux)
+
+	stdout, _, err := executeCmd("pay", "x@y.com", "--amount", "1000", "--yes")
+	if err != nil {
+		t.Fatalf("pay: %v", err)
+	}
+	if !strings.HasSuffix(stdout, "  Still in progress. Check it with 'lnbot payment list'.\n  Sent; the Lightning network is completing it, usually within seconds.\n") {
+		t.Errorf("unexpected ending:\n%s", stdout)
+	}
+	if strings.Contains(stdout, "retrying it") {
+		t.Errorf("still promises retries:\n%s", stdout)
 	}
 }
