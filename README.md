@@ -88,20 +88,20 @@ Every command supports `--help` for detailed usage, flags, and examples.
 
 Amounts are whole sats, written the way [BIP 177](https://github.com/bitcoin/bips/blob/master/bip-0177.mediawiki) does: `--amount 1000` is ₿1,000.
 
-Payments between ln.bot wallets are free. A payment out to Lightning pays a 0.25% service fee (at least ₿1) and the network fee, 0.25% plus Lightning routing. `lnbot pay` shows both and the total before it asks:
+Payments between ln.bot wallets are free. A payment out to Lightning pays a 0.25% service fee (at least ₿1) and the network fee, which is the Lightning routing fee. `lnbot pay` shows both and the total before it asks:
 
 ```
 $ lnbot pay alice@example.com --amount 250000
   Amount:       ₿250,000
-  Network fee:  ₿700 (estimate)
+  Network fee:  ₿75 (estimate)
   Service fee:  ₿625
-  Total:        ₿251,325
+  Total:        ₿250,700
 Send ₿250,000 to alice@example.com? (y/N) y
 ✓ Payment settled in 1840ms
   Amount:     ₿250,000
-  Fees:       ₿1,323 (network ₿698, service ₿625)
-  Total:      ₿251,323
-  Available:  ₿48,675
+  Fees:       ₿698 (network ₿73, service ₿625)
+  Total:      ₿250,698
+  Available:  ₿49,300
 ```
 
 The network fee is capped at 1% of the amount (at least ₿20). Pass `--max-fee <sats>` to allow more, and `--all` instead of `--amount` to send everything the wallet can to a Lightning address or LNURL. `--yes` skips the quote along with the question.

@@ -26,8 +26,8 @@ var payCmd = &cobra.Command{
 
 Before it asks, pay shows the amount, the fees and the total. Payments
 between ln.bot wallets are free. A payment out to Lightning pays a service
-fee of 0.25% (at least ₿1) and the network fee: 0.25% plus Lightning
-routing. The network fee is capped at 1% of the amount, at least ₿20,
+fee of 0.25% (at least ₿1) and the network fee, which is the Lightning
+routing fee. The network fee is capped at 1% of the amount, at least ₿20,
 unless you set --max-fee.
 
 Use --yes to skip the fee quote and the confirmation prompt. The CLI waits
